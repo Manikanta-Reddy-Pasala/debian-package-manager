@@ -1,86 +1,83 @@
-"""DPKG interface for forced package operations."""
+"""DPKG interface for safe package operations."""
 
 import subprocess
 import time
 import os
 from typing import List, Optional, Tuple
 from .models import Package, PackageStatus
+from .config import Config
 
 
 class DPKGInterface:
-    """Interface for direct DPKG operations and forced actions."""
+    """Interface for safe DPKG operations with prefix-based safety."""
     
-    def __init__(self):
-        """Initialize DPKG interface."""
+    def __init__(self, config: Optional[Config] = None):
+        """Initialize DPKG interface with safety configuration."""
+        self.config = config or Config()
         self.lock_files = [
             '/var/lib/dpkg/lock',
             '/var/lib/dpkg/lock-frontend',
             '/var/cache/apt/archives/lock'
         ]
     
-    def force_remove(self, package: str, ignore_dependencies: bool = True) -> bool:
-        """Force remove a package, ignoring dependencies if specified."""
+    def safe_remove(self, package: str) -> bool:
+        """Safely remove a package only if it has a custom prefix.
+        
+        This method enforces the safety-first approach by only removing
+        packages that match configured custom prefixes.
+        """
+        # Safety check: only remove packages with custom prefixes
+        if not self.config.can_remove_package(package):
+            print(f"🚫 Cannot remove {package}: System package (no custom prefix)")
+            print("   Only packages with configured custom prefixes can be removed.")
+            print("   Add custom prefixes with: dpm config --add-prefix 'yourprefix-'")
+            return False
+        
         try:
             # Check and handle locks first
             if not self._handle_locks():
                 print("Warning: Could not resolve package locks")
             
-            cmd = ['sudo', 'dpkg', '--remove']
-            
-            if ignore_dependencies:
-                cmd.append('--force-depends')
-                cmd.append('--force-remove-essential')
-            
-            cmd.append(package)
+            # Use standard dpkg remove (no dangerous force options)
+            cmd = ['sudo', 'dpkg', '--remove', package]
             
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
+                print(f"✅ Successfully removed custom package: {package}")
                 return True
             else:
-                # Try with more aggressive force options
-                return self._force_remove_aggressive(package)
+                print(f"❌ Failed to remove {package}: {result.stderr}")
+                return False
                 
         except Exception as e:
-            print(f"Error force removing package {package}: {e}")
+            print(f"Error removing package {package}: {e}")
             return False
     
-    def _force_remove_aggressive(self, package: str) -> bool:
-        """Use most aggressive force removal options."""
-        try:
-            cmd = [
-                'sudo', 'dpkg', '--remove',
-                '--force-depends',
-                '--force-remove-essential',
-                '--force-remove-reinstreq',
-                '--force-confmiss',
-                '--force-confold',
-                package
-            ]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            return result.returncode == 0
-            
-        except Exception as e:
-            print(f"Error in aggressive force removal: {e}")
+    def safe_purge(self, package: str) -> bool:
+        """Safely purge a package only if it has a custom prefix.
+        
+        This removes the package and its configuration files, but only
+        for packages with configured custom prefixes.
+        """
+        # Safety check: only purge packages with custom prefixes
+        if not self.config.can_remove_package(package):
+            print(f"🚫 Cannot purge {package}: System package (no custom prefix)")
+            print("   Only packages with configured custom prefixes can be purged.")
             return False
-    
-    def purge_package(self, package: str, force: bool = False) -> bool:
-        """Purge a package completely, removing configuration files."""
+        
         try:
-            cmd = ['sudo', 'dpkg', '--purge']
-            
-            if force:
-                cmd.extend([
-                    '--force-depends',
-                    '--force-remove-essential',
-                    '--force-confmiss'
-                ])
-            
-            cmd.append(package)
+            # Use standard dpkg purge (no dangerous force options)
+            cmd = ['sudo', 'dpkg', '--purge', package]
             
             result = subprocess.run(cmd, capture_output=True, text=True)
-            return result.returncode == 0
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully purged custom package: {package}")
+                return True
+            else:
+                print(f"❌ Failed to purge {package}: {result.stderr}")
+                return False
             
         except Exception as e:
             print(f"Error purging package {package}: {e}")

@@ -20,6 +20,14 @@ class PackageClassifier:
         custom_prefixes = self.config.get_custom_prefixes()
         return any(package_name.startswith(prefix) for prefix in custom_prefixes)
     
+    def can_remove_package(self, package_name: str) -> bool:
+        """Check if a package can be removed based on custom prefixes.
+        
+        Only packages with configured custom prefixes can be removed.
+        This is a safety feature to prevent system package removal.
+        """
+        return self.config.can_remove_package(package_name)
+    
     def is_metapackage(self, package_name: str) -> bool:
         """Check if package is likely a metapackage."""
         # Check for metapackage indicators in name

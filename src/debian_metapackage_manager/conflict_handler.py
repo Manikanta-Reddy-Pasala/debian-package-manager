@@ -73,16 +73,19 @@ class ConflictHandler:
         filtered_packages, blocked_packages = self._filter_packages_for_removal(packages_to_remove)
         
         if blocked_packages:
-            print(f"\n🚫 BLOCKED REMOVALS - The following packages are PROTECTED and cannot be removed:")
+            print(f"\n🚫 BLOCKED REMOVALS - The following packages CANNOT be removed:")
             print("-" * 70)
             for pkg in blocked_packages:
-                reason = "System package removal disabled" if not self.config.is_system_package_removal_allowed() else "Protected package"
-                print(f"   - {pkg.name} (v{pkg.version}) - {reason}")
+                print(f"   - {pkg.name} (v{pkg.version}) - System package (no custom prefix)")
+            print()
+            print("ℹ️  System packages are never removed for safety.")
+            print("   Only packages with configured custom prefixes can be removed.")
+            print("   Add custom prefixes with: dpm config --add-prefix 'yourprefix-'")
             print()
             
             if not filtered_packages:
-                print("❌ Cannot proceed: All required removals are blocked by policy.")
-                print("   Consider using --force flag or updating your configuration.")
+                print("❌ Cannot proceed: All required removals are system packages.")
+                print("   Configure custom prefixes to enable conflict resolution.")
                 return False
         
         if not filtered_packages:
@@ -186,24 +189,20 @@ class ConflictHandler:
             return ""
     
     def _filter_packages_for_removal(self, packages: List[Package]) -> Tuple[List[Package], List[Package]]:
-        """Filter packages for removal based on configuration policy."""
+        """Filter packages for removal based on custom prefixes.
+        
+        Only packages with configured custom prefixes can be removed.
+        All system packages are blocked from removal.
+        """
         allowed_packages = []
         blocked_packages = []
         
         for pkg in packages:
-            # Check if package is protected
-            if self.config.is_package_protected(pkg.name):
+            # Only allow removal of packages with custom prefixes
+            if self.config.can_remove_package(pkg.name):
+                allowed_packages.append(pkg)
+            else:
                 blocked_packages.append(pkg)
-                continue
-            
-            # Check if it's a system package and system removal is disabled
-            is_custom = self.classifier.is_custom_package(pkg.name)
-            if not is_custom and not self.config.is_system_package_removal_allowed():
-                blocked_packages.append(pkg)
-                continue
-            
-            # Package is allowed for removal
-            allowed_packages.append(pkg)
         
         return allowed_packages, blocked_packages
     
@@ -231,45 +230,27 @@ class ConflictHandler:
         return plan
     
     def _choose_package_for_removal(self, target_pkg: Package, conflicting_pkg: Package) -> Optional[Package]:
-        """Choose which package to remove in a conflict based on policy."""
-        target_is_custom = self.classifier.is_custom_package(target_pkg.name)
-        conflicting_is_custom = self.classifier.is_custom_package(conflicting_pkg.name)
+        """Choose which package to remove in a conflict based on custom prefixes.
         
-        # Check if packages are protected
-        target_protected = self.config.is_package_protected(target_pkg.name)
-        conflicting_protected = self.config.is_package_protected(conflicting_pkg.name)
+        Only packages with custom prefixes can be removed.
+        Prefer removing the conflicting package (already installed) over the target.
+        """
+        target_can_remove = self.config.can_remove_package(target_pkg.name)
+        conflicting_can_remove = self.config.can_remove_package(conflicting_pkg.name)
         
-        # Never remove protected packages
-        if target_protected and conflicting_protected:
-            return None  # Cannot resolve conflict
-        elif target_protected:
-            return conflicting_pkg if self._can_remove_package(conflicting_pkg) else None
-        elif conflicting_protected:
-            return target_pkg if self._can_remove_package(target_pkg) else None
+        # If neither can be removed, conflict cannot be resolved
+        if not target_can_remove and not conflicting_can_remove:
+            return None
         
-        # Prefer removing custom packages if policy allows
-        if self.config.should_prefer_custom_package_removal():
-            if conflicting_is_custom and not target_is_custom:
-                return conflicting_pkg if self._can_remove_package(conflicting_pkg) else None
-            elif target_is_custom and not conflicting_is_custom:
-                return target_pkg if self._can_remove_package(target_pkg) else None
+        # If only one can be removed, remove that one
+        if conflicting_can_remove and not target_can_remove:
+            return conflicting_pkg
+        elif target_can_remove and not conflicting_can_remove:
+            return target_pkg
         
-        # If both are custom or both are system, prefer removing the conflicting package
+        # If both can be removed, prefer removing the conflicting package
         # (the one that's already installed and blocking the new installation)
-        return conflicting_pkg if self._can_remove_package(conflicting_pkg) else None
-    
-    def _can_remove_package(self, package: Package) -> bool:
-        """Check if a package can be safely removed based on policy."""
-        # Check if protected
-        if self.config.is_package_protected(package.name):
-            return False
-        
-        # Check if it's a system package and system removal is disabled
-        is_custom = self.classifier.is_custom_package(package.name)
-        if not is_custom and not self.config.is_system_package_removal_allowed():
-            return False
-        
-        return True
+        return conflicting_pkg
     
     def create_forced_resolution_plan(self, conflicts: List[Conflict]) -> DependencyPlan:
         """Create a plan that resolves conflicts with forced operations."""

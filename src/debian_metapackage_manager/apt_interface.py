@@ -1,17 +1,19 @@
-"""APT interface wrapper for package operations."""
+"""APT interface wrapper for safe package operations."""
 
 import subprocess
 import re
 from typing import List, Optional, Dict, Tuple
 from .interfaces import PackageInterface
 from .models import Package, Conflict, PackageStatus
+from .config import Config
 
 
 class APTInterface(PackageInterface):
-    """Wrapper around APT for package management operations."""
+    """Wrapper around APT for safe package management operations."""
     
-    def __init__(self):
-        """Initialize APT interface."""
+    def __init__(self, config: Optional[Config] = None):
+        """Initialize APT interface with safety configuration."""
+        self.config = config or Config()
         self._cache_info = {}
     
     def install(self, package: str, version: Optional[str] = None) -> bool:
@@ -32,16 +34,31 @@ class APTInterface(PackageInterface):
             print(f"Error installing package {package}: {e}")
             return False
     
-    def remove(self, package: str, force: bool = False) -> bool:
-        """Remove a package with optional force flag."""
+    def remove_safe(self, package: str) -> bool:
+        """Safely remove a package only if it has a custom prefix.
+        
+        This method enforces the safety-first approach by only removing
+        packages that match configured custom prefixes.
+        """
+        # Safety check: only remove packages with custom prefixes
+        if not self.config.can_remove_package(package):
+            print(f"🚫 Cannot remove {package}: System package (no custom prefix)")
+            print("   Only packages with configured custom prefixes can be removed.")
+            print("   Add custom prefixes with: dpm config --add-prefix 'yourprefix-'")
+            return False
+        
         try:
-            cmd = ['sudo', 'apt-get', 'remove', '-y']
-            if force:
-                cmd.extend(['--force-yes', '--allow-remove-essential'])
-            cmd.append(package)
+            # Use standard apt-get remove (no dangerous force options)
+            cmd = ['sudo', 'apt-get', 'remove', '-y', package]
             
             result = subprocess.run(cmd, capture_output=True, text=True)
-            return result.returncode == 0
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully removed custom package: {package}")
+                return True
+            else:
+                print(f"❌ Failed to remove {package}: {result.stderr}")
+                return False
             
         except Exception as e:
             print(f"Error removing package {package}: {e}")

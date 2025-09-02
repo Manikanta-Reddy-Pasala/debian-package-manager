@@ -15,8 +15,8 @@ class PackageInterface(ABC):
         pass
     
     @abstractmethod
-    def remove(self, package: str, force: bool = False) -> bool:
-        """Remove a package with optional force flag."""
+    def remove_safe(self, package: str) -> bool:
+        """Safely remove a package only if it has a custom prefix."""
         pass
     
     @abstractmethod

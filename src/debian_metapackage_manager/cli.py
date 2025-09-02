@@ -322,28 +322,13 @@ Examples:
             for prefix in prefixes:
                 print(f"    - {prefix}")
         else:
-            print("    (none configured)")
+            print("    ⚠️  (none configured - no packages can be removed!)")
         print()
         
-        # Conflict resolution policy
-        policy = self.config.get_conflict_resolution_policy()
-        print("⚔️  Conflict Resolution Policy:")
-        system_removal = "✅ Allowed" if policy.get('allow_system_package_removal', False) else "🚫 Blocked (SAFE)"
-        print(f"    System Package Removal: {system_removal}")
-        prefer_custom = "✅ Yes" if policy.get('prefer_custom_package_removal', True) else "❌ No"
-        print(f"    Prefer Custom Package Removal: {prefer_custom}")
-        print()
-        
-        # Protected packages
-        protected = self.config.get_protected_packages()
-        print(f"🛡️  Protected Packages ({len(protected)}):")
-        if protected:
-            for pkg in protected[:10]:  # Show first 10
-                print(f"    - {pkg}")
-            if len(protected) > 10:
-                print(f"    ... and {len(protected) - 10} more")
-        else:
-            print("    (using default system protection)")
+        # Safety policy
+        print("🛡️  Safety Policy:")
+        print("    System Package Removal: 🚫 NEVER ALLOWED (SAFE)")
+        print("    Custom Package Removal: ✅ Only packages with configured prefixes")
         print()
         
         # Pinned versions
@@ -359,10 +344,11 @@ Examples:
         print()
         
         print("💡 Configuration Tips:")
-        print("    - Add your custom package prefixes to enable safe conflict resolution")
-        print("    - Keep system package removal blocked for safety")
-        print("    - Use protected packages list for critical custom packages")
+        print("    - Add your custom package prefixes to enable conflict resolution")
+        print("    - Only packages with these prefixes can be removed during conflicts")
+        print("    - System packages are NEVER removed for safety")
         print("    - Example: dpm config --add-prefix 'mycompany-'")
+        print("    - Example: dpm config --add-prefix 'internal-'")
 
 
 def main():
