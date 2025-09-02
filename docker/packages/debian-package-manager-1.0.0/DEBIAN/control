@@ -1,0 +1,5 @@
+Package: debian-package-manager
+Version: 1.0.0
+Architecture: all
+Maintainer: DPM Docker Environment
+Description: Example package for DPM testing

@@ -12,11 +12,11 @@ docker/
 ├── config/                # DPM configuration files
 │   └── config.json        # System-wide DPM configuration
 ├── packages/              # Example packages for testing
-│   └── docker-example-1.0.0/  # Example package source
+│   └── debian-package-manager-1.0.0/  # Example package source
 │       ├── DEBIAN/
 │       │   └── control    # Package metadata
 │       └── usr/local/bin/
-│           └── docker-example  # Example executable
+│           └── debian-package-manager  # Example executable
 └── scripts/               # Helper scripts for container management
     ├── build-packages.sh  # Build example packages
     ├── start.sh          # Start container and enter shell
@@ -40,7 +40,7 @@ From the project root directory:
 dpm health
 dpm mode --status
 dpm list --custom
-dpm info docker-example
+dpm info debian-package-manager
 ```
 
 ## Container Features
@@ -74,14 +74,12 @@ dpm info docker-example
 ### `config/config.json`
 System-wide DPM configuration with:
 - Custom prefixes including `docker-` for container-specific packages
-- Removable packages list with examples
 - Online mode enabled by default
-- Example pinned versions
 
-### `packages/docker-example-1.0.0/`
+### `packages/debian-package-manager-1.0.0/`
 Example package demonstrating:
 - Proper Debian package structure
-- Custom prefix usage (`docker-`)
+- Custom prefix usage (`debian-`)
 - Simple executable for testing
 - Package metadata in `DEBIAN/control`
 
@@ -95,14 +93,14 @@ dpm mode --status            # Check current mode
 dpm mode --online            # Switch to online mode
 dpm mode --offline           # Switch to offline mode
 dpm list --custom            # List custom packages
-dpm info docker-example      # Show example package info
+dpm info debian-package-manager      # Show example package info
 ```
 
 ### Package Management Testing
 ```bash
 # Test package operations
-dpm remove docker-example    # Remove example package
-dpm install /tmp/example-packages/docker-example-1.0.0.deb  # Reinstall
+dpm remove debian-package-manager    # Remove example package
+dpm install /tmp/example-packages/debian-package-manager-1.0.0.deb  # Reinstall
 ```
 
 ### Remote Connection Testing
@@ -149,7 +147,7 @@ mypy src/
 # Inside container
 mkdir -p /tmp/test-pkg/DEBIAN
 cat > /tmp/test-pkg/DEBIAN/control << EOF
-Package: docker-test-pkg
+Package: debian-test-pkg
 Version: 1.0.0
 Architecture: all
 Description: Test package
@@ -197,70 +195,3 @@ docker-compose build --no-cache
 ```
 
 ## Troubleshooting
-
-### Container Won't Start
-```bash
-# Check Docker status
-docker ps -a
-cd docker && docker-compose logs
-
-# Rebuild if needed
-./dpm-docker-rebuild.sh
-```
-
-### Package Installation Issues
-```bash
-# Inside container, check package status
-dpkg -l | grep docker-example
-apt list --installed | grep docker
-
-# Rebuild example package
-cd /tmp/example-packages
-dpkg-deb --build docker-example-1.0.0
-dpkg -i docker-example-1.0.0.deb
-```
-
-### Network/Mode Issues
-```bash
-# Test network connectivity
-ping google.com
-curl -I https://archive.ubuntu.com
-
-# Check DPM mode detection
-dpm mode --status
-dpm mode --online
-dpm health --verbose
-```
-
-### Permission Issues
-```bash
-# Inside container, use sudo for privileged operations
-sudo dpm install some-package
-sudo apt update
-```
-
-## Customization
-
-### Adding Custom Packages
-1. Create package structure in `packages/`
-2. Build with `dpkg-deb --build`
-3. Copy to container or rebuild image
-
-### Modifying Configuration
-1. Edit `config/config.json`
-2. Rebuild container to apply changes
-3. Or modify inside running container for testing
-
-### Adding Development Tools
-1. Edit `Dockerfile` to add packages
-2. Rebuild image with `./dpm-docker-rebuild.sh`
-
-## Benefits
-
-- **🔒 Isolation**: No impact on host system
-- **🧪 Safe Testing**: Test dangerous operations safely
-- **🚀 Quick Setup**: Ready in minutes
-- **🔄 Reproducible**: Consistent across machines
-- **🔧 Development**: Live code editing
-- **🌐 Network Testing**: Test online/offline modes
-- **📦 Package Testing**: Create and test packages safely
