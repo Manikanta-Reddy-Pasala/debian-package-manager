@@ -199,15 +199,18 @@ dpm cleanup --artifactory
 
 ### 🔗 Remote Management
 
-#### `dpm connect <host> [--port <port>] [--user <user>]`
+#### `dpm connect [<user>@]<host> [--port <port>] [--key <key-path>]`
 Connect to a remote system for package management.
 
 ```bash
-# Connect with default settings
-dpm connect 192.168.1.100
+# Connect with username@host format
+dpm connect user@192.168.1.100
 
-# Connect with custom port and user
-dpm connect 192.168.1.100 --port 2222 --user admin
+# Connect with separate user and host
+dpm connect user 192.168.1.100
+
+# Connect with custom port and SSH key
+dpm connect user@host.com --key ~/.ssh/id_rsa --port 2222
 ```
 
 #### `dpm connect --disconnect`
@@ -215,6 +218,13 @@ Disconnect from remote system.
 
 ```bash
 dpm connect --disconnect
+```
+
+#### `dpm connect`
+Show current connection status.
+
+```bash
+dpm connect
 ```
 
 ## Configuration

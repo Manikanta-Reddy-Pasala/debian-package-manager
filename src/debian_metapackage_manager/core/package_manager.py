@@ -1,10 +1,10 @@
 """Core package management operations."""
 
 from typing import List, Optional
-from ..interfaces.apt import APTInterface
-from ..interfaces.dpkg import DPKGInterface
-from ..classifier import PackageClassifier
-from ..mode_manager import ModeManager
+from .interfaces.apt import APTInterface
+from .interfaces.dpkg import DPKGInterface
+from .classifier import PackageClassifier
+from .mode_manager import ModeManager
 from ..models import Package, OperationResult, PackageStatus
 from ..config import Config
 from ..utils.force_analyzer import ForceOperationAnalyzer
