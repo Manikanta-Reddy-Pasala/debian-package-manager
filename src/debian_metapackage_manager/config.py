@@ -21,7 +21,7 @@ class Config(ConfigInterface):
     def _get_default_config_path(self) -> str:
         """Get default configuration file path."""
         home_dir = Path.home()
-        config_dir = home_dir / '.config' / 'debian-metapackage-manager'
+        config_dir = home_dir / '.config' / 'debian-package-manager'
         config_dir.mkdir(parents=True, exist_ok=True)
         return str(config_dir / 'config.json')
     

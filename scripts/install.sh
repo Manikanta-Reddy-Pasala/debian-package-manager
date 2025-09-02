@@ -19,7 +19,7 @@ fi
 
 # Install the package
 echo "Installing with uv..."
-uv tool install debian-metapackage-manager
+uv tool install debian-package-manager
 
 # Verify installation
 if command -v dpm &> /dev/null; then

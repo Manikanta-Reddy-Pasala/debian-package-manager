@@ -15,7 +15,7 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> lo
         log_path.parent.mkdir(parents=True, exist_ok=True)
     else:
         # Default log location
-        log_dir = Path.home() / '.local' / 'share' / 'debian-metapackage-manager' / 'logs'
+        log_dir = Path.home() / '.local' / 'share' / 'debian-package-manager' / 'logs'
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = str(log_dir / 'dpm.log')
     

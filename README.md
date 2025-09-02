@@ -6,7 +6,7 @@ Intelligent package management for custom Debian package systems with offline/on
 
 - **Dual Mode Operation**: Support for both offline (pinned versions) and online/artifactory modes
 - **Intelligent Dependency Resolution**: Advanced conflict detection and resolution with user confirmation
-- **Custom Package Recognition**: Configurable prefixes for identifying custom/metapackages
+- **Custom Package Recognition**: Configurable prefixes for identifying custom packages
 - **Force Operations**: Safe force installation/removal with comprehensive user confirmation
 - **System Health Monitoring**: Built-in health checks and automatic system repair
 - **Standalone Executable**: Works without system Python dependencies
@@ -59,7 +59,7 @@ pip install -e ".[dev]"
 
 ```bash
 # Basic package operations
-dpm install mycompany-dev-tools     # Install a metapackage
+dpm install mycompany-dev-tools     # Install a custom package
 dpm remove old-package              # Remove a package
 dpm info vim                        # Show package information
 dpm list --custom                   # List custom packages
@@ -138,8 +138,8 @@ dpm mode --auto                    # Auto-detect appropriate mode
 The system uses a hierarchical configuration approach:
 
 ### Configuration Files
-- **System Config**: `/etc/debian-metapackage-manager/config.json`
-- **User Config**: `~/.config/debian-metapackage-manager/config.json`
+- **System Config**: `/etc/debian-package-manager/config.json`
+- **User Config**: `~/.config/debian-package-manager/config.json`
 
 ### Configuration Options
 ```json
