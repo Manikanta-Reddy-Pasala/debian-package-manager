@@ -301,6 +301,8 @@ class RemotePackageManager:
             cmd.append('--force')
         if kwargs.get('offline'):
             cmd.append('--offline')
+        if kwargs.get('online'):
+            cmd.append('--online')
         if kwargs.get('version'):
             cmd.extend(['--version', kwargs['version']])
         

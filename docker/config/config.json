@@ -1,0 +1,24 @@
+{
+    "custom_prefixes": [
+        "mycompany-",
+        "internal-",
+        "custom-",
+        "dev-",
+        "local-",
+        "meta-",
+        "bundle-",
+        "docker-"
+    ],
+    "removable_packages": [
+        "example-old-package",
+        "test-package",
+        "demo-service",
+        "docker-example"
+    ],
+    "offline_mode": false,
+    "pinned_versions": {
+        "docker-example": "1.0.0"
+    },
+    "force_confirmation_required": true,
+    "auto_resolve_conflicts": true
+}

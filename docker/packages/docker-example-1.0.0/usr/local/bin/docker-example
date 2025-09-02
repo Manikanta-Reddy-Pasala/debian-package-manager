@@ -1,0 +1,10 @@
+#!/bin/bash
+echo "🐳 Hello from docker-example package!"
+echo "📦 This is a test package for DPM functionality"
+echo "✅ Package is working correctly"
+echo ""
+echo "Package details:"
+echo "  Name: docker-example"
+echo "  Version: 1.0.0"
+echo "  Type: Custom package with 'docker-' prefix"
+echo "  Purpose: Testing DPM functionality in Docker environment"

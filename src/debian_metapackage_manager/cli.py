@@ -103,6 +103,8 @@ Examples:
                                    help='Force installation even with conflicts')
         install_parser.add_argument('--offline', action='store_true', 
                                    help='Use offline mode with pinned versions')
+        install_parser.add_argument('--online', action='store_true', 
+                                   help='Use online mode with latest versions')
         install_parser.add_argument('--version', help='Specific version to install')
         
         # Remove command
@@ -198,13 +200,21 @@ Examples:
             kwargs = {
                 'force': args.force,
                 'offline': args.offline,
+                'online': args.online,
                 'version': args.version
             }
             result = self.remote_manager.execute_command('install', args.package_name, **kwargs)
         else:
             # Execute locally
-            if args.offline:
+            if args.offline and args.online:
+                print("Error: Cannot specify both --offline and --online modes")
+                return 1
+            elif args.offline:
+                print("Switching to offline mode for this operation")
                 self.engine.mode_manager.switch_to_offline_mode()
+            elif args.online:
+                print("Switching to online mode for this operation")
+                self.engine.mode_manager.switch_to_online_mode()
             
             result = self.engine.install_package(args.package_name, force=args.force)
         

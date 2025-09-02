@@ -19,16 +19,20 @@ class ModeManager:
     
     def is_offline_mode(self) -> bool:
         """Check if currently operating in offline mode."""
-        # Check configuration setting
-        if self.config.is_offline_mode():
+        # Check configuration setting first
+        config_offline = self.config.is_offline_mode()
+        
+        # If explicitly set to offline, respect that
+        if config_offline:
             return True
         
-        # Auto-detect if network/repositories are unavailable
-        if not self.is_network_available() or not self.are_repositories_accessible():
-            print("Network or repositories unavailable, switching to offline mode")
-            return True
+        # If explicitly set to online, check if network is actually available
+        if not config_offline:
+            # Only force offline if both network and repositories are unavailable
+            if not self.is_network_available() and not self.are_repositories_accessible():
+                return True
         
-        return False
+        return config_offline
     
     def is_network_available(self) -> bool:
         """Check if network connectivity is available."""
@@ -76,11 +80,11 @@ class ModeManager:
     
     def switch_to_online_mode(self) -> None:
         """Switch to online mode."""
-        if self.is_network_available() and self.are_repositories_accessible():
-            self.config.set_offline_mode(False)
-            print("Switched to online mode - using latest versions")
-        else:
-            print("Cannot switch to online mode - network or repositories unavailable")
+        self.config.set_offline_mode(False)
+        print("Switched to online mode - using latest versions")
+        
+        # Clear network cache to force re-detection
+        self.clear_network_cache()
     
     def get_package_version_for_mode(self, package_name: str) -> Optional[str]:
         """Get the appropriate package version based on current mode."""

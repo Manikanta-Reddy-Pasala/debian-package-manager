@@ -43,6 +43,19 @@ sudo ./install.sh
 - 🚀 **Quick Setup**: Ready to use in minutes with example packages
 - 🔧 **Development Ready**: Live code editing with immediate testing
 - 🌐 **Remote Testing**: Test SSH connections in controlled environment
+- 📦 **Organized Structure**: All Docker files properly organized in docker/ directory
+
+**Docker Structure:**
+
+```
+docker/
+├── Dockerfile              # Container definition
+├── docker-compose.yml      # Orchestration config
+├── config/                 # DPM configuration files
+├── packages/               # Example packages
+├── scripts/                # Setup and build scripts
+└── bashrc-additions        # Shell environment setup
+```
 
 See [DOCKER.md](DOCKER.md) for detailed Docker usage instructions.
 
@@ -84,6 +97,22 @@ pip install -e ".[dev]"
 - **Privileges**: Root access required for package operations
 - **Dependencies**: `apt`, `dpkg`, `python3-apt`
 
+## Recent Fixes & Improvements
+
+### Fixed Issues
+
+- ✅ **--online mode**: Fixed missing `--online` option in install command
+- ✅ **Offline mode detection**: Improved logic to prevent false offline mode when internet is available
+- ✅ **Docker structure**: Reorganized Docker files into proper directory structure
+- ✅ **Mode switching**: Enhanced mode switching with proper validation and user feedback
+
+### Enhanced Features
+
+- 🔧 **Mode Management**: Better online/offline mode detection and switching
+- 📦 **Docker Environment**: Organized file structure with dedicated scripts and configuration
+- 🌐 **Network Detection**: Improved network and repository accessibility checks
+- 🚀 **Installation Options**: Both `--online` and `--offline` flags now work correctly
+
 ## Quick Start
 
 ```bash
@@ -110,7 +139,8 @@ dpm mode --status                   # Check offline/online mode
 # Install packages
 dpm install <package-name>                    # Standard installation
 dpm install <package-name> --force           # Force install with conflicts
-dpm install <package-name> --offline         # Use offline mode
+dpm install <package-name> --online          # Force online mode (latest versions)
+dpm install <package-name> --offline         # Force offline mode (pinned versions)
 dpm install <package-name> --version 1.2.3   # Install specific version
 
 # Remove packages
@@ -157,6 +187,10 @@ dpm config --list-removable                 # List all removable packages
 # Mode settings
 dpm config --set-offline                    # Enable offline mode
 dpm config --set-online                     # Enable online mode
+dpm mode --status                           # Check current mode status
+dpm mode --online                           # Switch to online mode
+dpm mode --offline                          # Switch to offline mode
+dpm mode --auto                             # Auto-detect appropriate mode
 ```
 
 ### System Cleanup and Maintenance
