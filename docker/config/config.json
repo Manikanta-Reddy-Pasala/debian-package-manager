@@ -9,12 +9,6 @@
         "bundle-",
         "docker-"
     ],
-    "removable_packages": [
-        "example-old-package",
-        "test-package",
-        "demo-service",
-        "docker-example"
-    ],
     "offline_mode": false,
     "pinned_versions": {
         "docker-example": "1.0.0"

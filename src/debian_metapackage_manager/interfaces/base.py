@@ -85,8 +85,3 @@ class ConfigInterface(ABC):
     def set_pinned_version(self, package: str, version: str) -> None:
         """Set pinned version for a package."""
         pass
-    
-    @abstractmethod
-    def get_removable_packages(self) -> List[str]:
-        """Get list of packages that can be safely removed."""
-        pass

@@ -40,41 +40,22 @@ class NetworkChecker:
         self._repository_accessible = None
     
     def is_network_available(self) -> bool:
-        """Check if network connectivity is available."""
-        if self._network_available is not None:
-            return self._network_available
+        """Check if network connectivity is available.
         
-        try:
-            # Try to ping a reliable DNS server
-            result = subprocess.run(
-                ['ping', '-c', '1', '-W', '3', '8.8.8.8'],
-                capture_output=True,
-                timeout=5
-            )
-            self._network_available = result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-            self._network_available = False
-        
-        return self._network_available
+        NOTE: This is a dummy implementation that returns True.
+        Replace this with actual network checking logic.
+        """
+        print("🌐 Checking network availability (dummy implementation)")
+        return True  # Dummy implementation - replace with actual logic
     
     def are_repositories_accessible(self) -> bool:
-        """Check if package repositories are accessible."""
-        if self._repository_accessible is not None:
-            return self._repository_accessible
+        """Check if package repositories are accessible.
         
-        try:
-            # Try to update package cache (dry run)
-            result = subprocess.run(
-                ['apt-get', 'update', '--dry-run'],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            self._repository_accessible = result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-            self._repository_accessible = False
-        
-        return self._repository_accessible
+        NOTE: This is a dummy implementation that returns True.
+        Replace this with actual repository accessibility checking logic.
+        """
+        print("📦 Checking repository accessibility (dummy implementation)")
+        return True  # Dummy implementation - replace with actual logic
     
     def clear_cache(self) -> None:
         """Clear cached network status to force re-detection."""
@@ -93,29 +74,13 @@ class ModeManager:
         self.network_checker = NetworkChecker()
     
     def is_offline_mode(self) -> bool:
+        """Check if currently operating in offline mode.
+        
+        NOTE: This is a dummy implementation that returns True.
+        Replace this with actual logic to determine offline mode status.
         """
-        Check if currently operating in offline mode.
-        
-        Returns True if:
-        1. Explicitly configured as offline, OR
-        2. Both network and repositories are unavailable
-        """
-        config_offline = self.config.is_offline_mode()
-        
-        # If explicitly set to offline, respect that
-        if config_offline:
-            return True
-        
-        # If explicitly set to online, check if network is actually available
-        if not config_offline:
-            # Only force offline if both network and repositories are unavailable
-            network_available = self.network_checker.is_network_available()
-            repos_accessible = self.network_checker.are_repositories_accessible()
-            
-            if not network_available and not repos_accessible:
-                return True
-        
-        return config_offline
+        print("🔍 Checking offline mode status (dummy implementation)")
+        return True  # Dummy implementation - replace with actual logic
     
     def switch_to_offline_mode(self) -> None:
         """Switch to offline mode."""

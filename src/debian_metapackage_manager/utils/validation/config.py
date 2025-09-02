@@ -28,10 +28,6 @@ def validate_config(config_data: Dict[str, Any]) -> bool:
     if 'offline_mode' in config_data:
         _validate_offline_mode(config_data['offline_mode'])
     
-    # Validate removable packages
-    if 'removable_packages' in config_data:
-        _validate_removable_packages(config_data['removable_packages'])
-    
     return True
 
 
@@ -62,20 +58,3 @@ def _validate_offline_mode(offline_mode: Any) -> None:
     """Validate offline mode setting."""
     if not isinstance(offline_mode, bool):
         raise ConfigValidationError("offline_mode", str(type(offline_mode)), "must be a boolean")
-
-
-def _validate_removable_packages(packages: Any) -> None:
-    """Validate removable packages configuration."""
-    if not isinstance(packages, list):
-        raise ConfigValidationError("removable_packages", str(type(packages)), "must be a list")
-    
-    for i, package in enumerate(packages):
-        if not isinstance(package, str):
-            raise ConfigValidationError(
-                f"removable_packages[{i}]", str(type(package)), "must be a string"
-            )
-        
-        if not package:
-            raise ConfigValidationError(
-                f"removable_packages[{i}]", "empty string", "cannot be empty"
-            )

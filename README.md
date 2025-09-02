@@ -314,7 +314,7 @@ echo "source /etc/bash_completion.d/dpm" >> ~/.bashrc
 
 ### Configuration Example
 
-```json
+```
 {
   "custom_prefixes": [
     "mycompany-",
@@ -324,11 +324,6 @@ echo "source /etc/bash_completion.d/dpm" >> ~/.bashrc
     "local-",
     "meta-",
     "bundle-"
-  ],
-  "removable_packages": [
-    "old-library",
-    "deprecated-tool",
-    "test-package"
   ],
   "offline_mode": false,
   "pinned_versions": {
