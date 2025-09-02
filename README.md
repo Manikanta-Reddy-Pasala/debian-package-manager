@@ -26,6 +26,26 @@ Intelligent package management for custom Debian package systems with offline/on
 sudo ./install.sh
 ```
 
+### Docker Environment (Isolated Testing)
+
+```bash
+# Create Docker environment with DPM pre-installed
+./install-docker.sh
+
+# Start and use DPM in container
+./dpm-docker-start.sh
+```
+
+**Benefits of Docker Installation:**
+
+- 🔒 **Isolated Environment**: No impact on host system
+- 🧪 **Safe Testing**: Test dangerous operations safely
+- 🚀 **Quick Setup**: Ready to use in minutes with example packages
+- 🔧 **Development Ready**: Live code editing with immediate testing
+- 🌐 **Remote Testing**: Test SSH connections in controlled environment
+
+See [DOCKER.md](DOCKER.md) for detailed Docker usage instructions.
+
 ### Manual Installation from Source
 
 ```bash
