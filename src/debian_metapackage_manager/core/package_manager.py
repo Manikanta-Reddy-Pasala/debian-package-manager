@@ -28,7 +28,7 @@ class PackageManager:
         """Install a package with intelligent upgrade handling and dependency resolution."""
         print(f"Installing package: {name}")
         
-        # Get appropriate version for current mode
+        # Get appropriate version for current mode (None means latest)
         if not version:
             version = self.mode_manager.get_package_version_for_mode(name)
         
@@ -300,6 +300,8 @@ class PackageManager:
         print("This operation will force remove the package with the above impacts.")
         response = input("Do you want to proceed? (type 'YES' to confirm): ")
         return response.upper() == "YES"
+    
+    def _safe_install_with_force_flags(self, package_name: str, version: Optional[str]) -> bool:
         """Install package with force flags to override conflicts."""
         try:
             import subprocess
@@ -492,12 +494,6 @@ class PackageManager:
             if broken_packages:
                 errors.extend([f"Broken package: {pkg.name}" for pkg in broken_packages])
             
-            # Check pinned version validity in offline mode
-            if self.mode_manager.is_offline_mode():
-                is_valid, issues = self.mode_manager.validate_pinned_versions()
-                if not is_valid:
-                    warnings.extend(issues)
-            
             # Check for package locks
             active_locks = self.dpkg.detect_locks()
             if active_locks:
@@ -525,154 +521,3 @@ class PackageManager:
     def fix_broken_system(self) -> OperationResult:
         """Attempt to fix broken package system."""
         print("Attempting to fix broken package system...")
-        
-        packages_affected = []
-        warnings = []
-        errors = []
-        
-        try:
-            # Fix broken packages
-            if self.dpkg.fix_broken_packages():
-                warnings.append("Fixed broken package configurations")
-            
-            # Handle locks
-            active_locks = self.dpkg.detect_locks()
-            if active_locks:
-                if self.dpkg._handle_locks():
-                    warnings.append("Resolved package locks")
-                else:
-                    errors.append("Could not resolve package locks")
-            
-            # Reconfigure broken packages
-            broken_packages = self.dpkg.list_broken_packages()
-            for package in broken_packages:
-                if self.dpkg.reconfigure_package(package.name):
-                    packages_affected.append(package)
-                    warnings.append(f"Reconfigured {package.name}")
-                else:
-                    errors.append(f"Could not reconfigure {package.name}")
-            
-            success = len(errors) == 0
-            
-            return OperationResult(
-                success=success,
-                packages_affected=packages_affected,
-                warnings=warnings,
-                errors=errors,
-                user_confirmations_required=[]
-            )
-            
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                packages_affected=packages_affected,
-                warnings=warnings,
-                errors=[f"System fix error: {str(e)}"],
-                user_confirmations_required=[]
-            )
-    
-    def _force_install_package(self, package: Package) -> OperationResult:
-        """Force install a package using aggressive methods with user confirmation."""
-        print(f"Force installing: {package.name}")
-        
-        # Analyze impact before proceeding
-        impact_analysis = self.force_analyzer.analyze_force_install_impact(
-            package.name, package.version
-        )
-        
-        # Show impact analysis to user
-        if impact_analysis['requires_confirmation']:
-            self._show_force_install_confirmation(impact_analysis)
-            
-            # Apply protection strategy
-            self.force_analyzer.apply_protection_strategy(
-                impact_analysis['protection_strategy']
-            )
-        
-        try:
-            # Try to fix broken packages first
-            self.dpkg.fix_broken_packages()
-            
-            # Try with --force-yes and --no-remove flags
-            success = self._safe_install_with_force_flags(package.name, package.version)
-            
-            if not success:
-                # Try to resolve locks
-                if self.dpkg._handle_locks():
-                    success = self._safe_install_with_force_flags(package.name, package.version)
-            
-            if success:
-                return OperationResult(
-                    success=True,
-                    packages_affected=[package],
-                    warnings=["Package installed with force methods"],
-                    errors=[],
-                    user_confirmations_required=[]
-                )
-            else:
-                return OperationResult(
-                    success=False,
-                    packages_affected=[],
-                    warnings=[],
-                    errors=[f"Force installation failed for {package.name}"],
-                    user_confirmations_required=[]
-                )
-                
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                packages_affected=[],
-                warnings=[],
-                errors=[f"Force installation error: {str(e)}"],
-                user_confirmations_required=[]
-            )
-    
-    def _force_remove_package(self, package: Package) -> OperationResult:
-        """Force remove a package using DPKG with user confirmation and protection."""
-        print(f"Force removing: {package.name}")
-        
-        # Analyze impact before proceeding
-        impact_analysis = self.force_analyzer.analyze_force_remove_impact(package.name)
-        
-        # Show impact analysis to user
-        if impact_analysis['requires_confirmation']:
-            self._show_force_remove_confirmation(impact_analysis)
-            
-            # Apply protection strategy
-            self.force_analyzer.apply_protection_strategy(
-                impact_analysis['protection_strategy']
-            )
-        
-        try:
-            # Try DPKG safe removal first
-            success = self.dpkg.safe_remove(package.name)
-            
-            if not success:
-                # Try safe purge as last resort
-                success = self.dpkg.safe_purge(package.name)
-            
-            if success:
-                return OperationResult(
-                    success=True,
-                    packages_affected=[package],
-                    warnings=["Package removed with force methods"],
-                    errors=[],
-                    user_confirmations_required=[]
-                )
-            else:
-                return OperationResult(
-                    success=False,
-                    packages_affected=[],
-                    warnings=[],
-                    errors=[f"Force removal failed for {package.name}"],
-                    user_confirmations_required=[]
-                )
-                
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                packages_affected=[],
-                warnings=[],
-                errors=[f"Force removal error: {str(e)}"],
-                user_confirmations_required=[]
-            )

@@ -326,10 +326,6 @@ echo "source /etc/bash_completion.d/dpm" >> ~/.bashrc
     "bundle-"
   ],
   "offline_mode": false,
-  "pinned_versions": {
-    "mycompany-core": "1.2.3",
-    "internal-utils": "2.1.0"
-  },
   "force_confirmation_required": true,
   "auto_resolve_conflicts": true
 }

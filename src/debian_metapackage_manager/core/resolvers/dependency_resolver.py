@@ -1,115 +1,24 @@
-"""Dependency resolution engine for complex package operations."""
+"""Advanced dependency resolution for complex package scenarios."""
 
-from typing import List, Set, Dict, Optional, Tuple
-from ...interfaces import DependencyResolverInterface
-from ...models import Package, DependencyPlan, Conflict, PackageStatus
-from ...interfaces.apt import APTInterface
-from ..classifier import PackageClassifier
+from typing import List, Optional, Set, Tuple
+from ...models import Package, Conflict, DependencyPlan, PackageStatus
 from ...config import Config
+from ...interfaces.apt import APTInterface
+from ...core.classifier import PackageClassifier
 
 
-class DependencyResolver(DependencyResolverInterface):
-    """Handles complex dependency resolution with conflict detection."""
+class DependencyResolver:
+    """Advanced dependency resolver with conflict handling."""
     
-    def __init__(self, apt_interface: Optional[APTInterface] = None, 
-                 classifier: Optional[PackageClassifier] = None,
-                 config: Optional[Config] = None):
-        """Initialize dependency resolver."""
-        self.apt = apt_interface or APTInterface()
-        self.classifier = classifier or PackageClassifier(config)
+    def __init__(self, config: Optional[Config] = None):
+        """Initialize resolver with configuration."""
         self.config = config or Config()
-        self._resolution_cache = {}
+        self.apt = APTInterface()
+        self.classifier = PackageClassifier(self.config)
     
-    def resolve_dependencies(self, package: Package) -> DependencyPlan:
-        """Resolve dependencies for a package installation."""
-        plan = DependencyPlan(
-            to_install=[],
-            to_remove=[],
-            to_upgrade=[],
-            conflicts=[]
-        )
-        
-        # Get all dependencies recursively
-        all_deps = self._get_all_dependencies(package.name)
-        
-        # Categorize dependencies
-        for dep in all_deps:
-            if not self.apt.is_installed(dep.name):
-                plan.to_install.append(dep)
-            elif self._should_upgrade(dep):
-                plan.to_upgrade.append(dep)
-        
-        # Add the main package if not installed
-        if not self.apt.is_installed(package.name):
-            plan.to_install.insert(0, package)
-        
-        # Check for conflicts
-        conflicts = self._detect_conflicts(plan.to_install + plan.to_upgrade)
-        plan.conflicts = conflicts
-        
-        # Resolve conflicts by determining what needs to be removed
-        if conflicts:
-            removal_plan = self._plan_conflict_resolution(conflicts)
-            plan.to_remove.extend(removal_plan)
-            plan.requires_user_confirmation = True
-        
-        return plan
-    
-    def resolve_conflicts(self, conflicts: List[Conflict]) -> DependencyPlan:
-        """Resolve package conflicts by planning removals."""
-        plan = DependencyPlan(
-            to_install=[],
-            to_remove=[],
-            to_upgrade=[],
-            conflicts=conflicts,
-            requires_user_confirmation=True
-        )
-        
-        # Plan removals to resolve conflicts
-        removal_plan = self._plan_conflict_resolution(conflicts)
-        plan.to_remove = removal_plan
-        
-        return plan
-    
-    def _get_all_dependencies(self, package_name: str, 
-                            visited: Optional[Set[str]] = None) -> List[Package]:
-        """Get all dependencies recursively."""
-        if visited is None:
-            visited = set()
-        
-        if package_name in visited:
-            return []  # Avoid circular dependencies
-        
-        visited.add(package_name)
-        
-        # Check cache first
-        if package_name in self._resolution_cache:
-            return self._resolution_cache[package_name]
-        
-        dependencies = []
-        direct_deps = self.apt.get_dependencies(package_name)
-        
-        for dep in direct_deps:
-            dependencies.append(dep)
-            # Get recursive dependencies
-            recursive_deps = self._get_all_dependencies(dep.name, visited.copy())
-            dependencies.extend(recursive_deps)
-        
-        # Remove duplicates while preserving order
-        unique_deps = []
-        seen_names = set()
-        for dep in dependencies:
-            if dep.name not in seen_names:
-                unique_deps.append(dep)
-                seen_names.add(dep.name)
-        
-        # Cache the result
-        self._resolution_cache[package_name] = unique_deps
-        
-        return unique_deps
-    
-    def _should_upgrade(self, package: Package) -> bool:
-        """Determine if a package should be upgraded."""
+    def is_package_upgradable(self, package: Package) -> bool:
+        """Check if a package can be upgraded."""
+        # Check if package is installed
         if not self.apt.is_installed(package.name):
             return False
         
@@ -117,12 +26,6 @@ class DependencyResolver(DependencyResolverInterface):
         current_info = self.apt.get_package_info(package.name)
         if current_info and current_info.status == PackageStatus.UPGRADABLE:
             return True
-        
-        # In offline mode, check against pinned versions
-        if self.config.is_offline_mode():
-            pinned_version = self.config.get_pinned_version(package.name)
-            if pinned_version and current_info:
-                return current_info.version != pinned_version
         
         return False
     

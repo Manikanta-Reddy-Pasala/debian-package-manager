@@ -75,13 +75,3 @@ class ConfigInterface(ABC):
     def is_offline_mode(self) -> bool:
         """Check if operating in offline mode."""
         pass
-    
-    @abstractmethod
-    def get_pinned_version(self, package: str) -> Optional[str]:
-        """Get pinned version for a package in offline mode."""
-        pass
-    
-    @abstractmethod
-    def set_pinned_version(self, package: str, version: str) -> None:
-        """Set pinned version for a package."""
-        pass

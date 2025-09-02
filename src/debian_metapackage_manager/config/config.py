@@ -16,7 +16,6 @@ class Config(ConfigInterface):
         self.config_path = config_path or self._get_default_config_path()
         self._config_data = self._load_config()
         self.package_prefixes = PackagePrefixes(self._config_data.get('custom_prefixes', []))
-        self.version_pinning = VersionPinning(self._config_data.get('pinned_versions', {}))
     
     def _get_default_config_path(self) -> str:
         """Get default configuration file path."""
@@ -50,7 +49,6 @@ class Config(ConfigInterface):
                 'bundle-'
             ],
             'offline_mode': False,
-            'pinned_versions': {},
             'force_confirmation_required': True,
             'auto_resolve_conflicts': True
         }
@@ -73,10 +71,6 @@ class Config(ConfigInterface):
         """Check if operating in offline mode."""
         return self._config_data.get('offline_mode', False)
     
-    def get_pinned_version(self, package: str) -> Optional[str]:
-        """Get pinned version for a package in offline mode."""
-        return self.version_pinning.get_pinned_version(package)
-    
     def set_offline_mode(self, offline: bool) -> None:
         """Set offline mode."""
         self._config_data['offline_mode'] = offline
@@ -92,12 +86,6 @@ class Config(ConfigInterface):
         """Remove a custom package prefix."""
         self.package_prefixes.remove_prefix(prefix)
         self._config_data['custom_prefixes'] = self.package_prefixes.get_prefixes()
-        self._save_config()
-    
-    def set_pinned_version(self, package: str, version: str) -> None:
-        """Set pinned version for a package."""
-        self.version_pinning.set_pinned_version(package, version)
-        self._config_data['pinned_versions'] = self.version_pinning.get_all_pinned()
         self._save_config()
     
     def can_remove_package(self, package_name: str) -> bool:
@@ -156,31 +144,3 @@ class PackagePrefixes:
     def is_custom_package(self, package_name: str) -> bool:
         """Check if package name matches any custom prefix."""
         return any(package_name.startswith(prefix) for prefix in self._prefixes)
-
-
-class VersionPinning:
-    """Manages pinned versions for offline mode."""
-    
-    def __init__(self, pinned_versions: Dict[str, str]):
-        """Initialize with pinned versions dictionary."""
-        self._pinned_versions = dict(pinned_versions) if pinned_versions else {}
-    
-    def get_pinned_version(self, package: str) -> Optional[str]:
-        """Get pinned version for a package."""
-        return self._pinned_versions.get(package)
-    
-    def set_pinned_version(self, package: str, version: str) -> None:
-        """Set pinned version for a package."""
-        self._pinned_versions[package] = version
-    
-    def remove_pinned_version(self, package: str) -> None:
-        """Remove pinned version for a package."""
-        self._pinned_versions.pop(package, None)
-    
-    def get_all_pinned(self) -> Dict[str, str]:
-        """Get all pinned versions."""
-        return self._pinned_versions.copy()
-    
-    def has_pinned_version(self, package: str) -> bool:
-        """Check if package has a pinned version."""
-        return package in self._pinned_versions

@@ -158,8 +158,7 @@ create_config() {
             "custom-"
         ]
     },
-    "offline_mode": false,
-    "version_pinning": {}
+    "offline_mode": false
 }
 EOF
         print_success "Created default configuration at /etc/debian-package-manager/config.json"
