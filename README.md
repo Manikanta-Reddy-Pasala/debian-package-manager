@@ -170,6 +170,34 @@ dpm config --add-prefix "internal-"
 # acme-dev-tools, internal-database, etc.
 ```
 
+### Conflict Resolution Policy
+Configure how the system handles package conflicts:
+```bash
+# View current conflict resolution settings
+dpm config --show
+
+# Block system package removal (SAFE - recommended)
+dpm config --block-system-removal
+
+# Allow system package removal (DANGEROUS - use with caution)
+dpm config --allow-system-removal
+
+# Add packages to protected list (never removed)
+dpm config --add-protected "critical-service"
+dpm config --add-protected "mycompany-database"
+
+# Remove packages from protected list
+dpm config --remove-protected "old-package"
+```
+
+### Safety Features
+The system includes several safety features to protect your system:
+
+- **System Package Protection**: By default, system packages cannot be removed during conflict resolution
+- **Custom Package Preference**: When resolving conflicts, custom packages are preferred for removal over system packages
+- **Protected Package List**: Critical packages are protected from removal
+- **Risk Assessment**: All operations are categorized by risk level with appropriate warnings
+
 ## Development
 
 ```bash

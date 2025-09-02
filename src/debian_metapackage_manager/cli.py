@@ -66,7 +66,7 @@ class PackageManagerCLI:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  dpm install mycompany-dev-tools          # Install a metapackage
+  dpm install mycompany-dev-tools          # Install a custom package
   dpm install vim --force                  # Force install with conflicts
   dpm remove old-package --force           # Force remove package
   dpm info mycompany-meta-suite           # Show package information
@@ -74,7 +74,8 @@ Examples:
   dpm health                              # Check system health
   dpm fix                                 # Fix broken packages
   dpm mode --offline                      # Switch to offline mode
-  dpm config --add-prefix "newcompany-"   # Add custom prefix
+  dpm config --add-prefix "newcompany-"   # Add custom prefix (IMPORTANT!)
+  dpm config --show                       # View safety settings
             """
         )
         
@@ -267,16 +268,19 @@ Examples:
             self._show_config()
         elif args.add_prefix:
             self.config.add_custom_prefix(args.add_prefix)
-            print(f"Added custom prefix: {args.add_prefix}")
+            self.config.save_config()
+            print(f"✅ Added custom prefix: {args.add_prefix}")
+            print(f"   Packages starting with '{args.add_prefix}' will now be treated as custom packages.")
         elif args.remove_prefix:
-            self.config.package_prefixes.remove_prefix(args.remove_prefix)
-            print(f"Removed custom prefix: {args.remove_prefix}")
+            self.config.remove_custom_prefix(args.remove_prefix)
+            print(f"✅ Removed custom prefix: {args.remove_prefix}")
         elif args.set_offline:
             self.config.set_offline_mode(True)
-            print("Enabled offline mode")
+            print("✅ Enabled offline mode")
         elif args.set_online:
             self.config.set_offline_mode(False)
-            print("Enabled online mode")
+            print("✅ Enabled online mode")
+
         else:
             self._show_config()
         
@@ -305,21 +309,60 @@ Examples:
     
     def _show_config(self) -> None:
         """Show current configuration."""
-        print("Configuration:")
-        print(f"  Config File: {self.config.config_path}")
-        print(f"  Offline Mode: {self.config.is_offline_mode()}")
+        print("📋 DEBIAN PACKAGE MANAGER CONFIGURATION")
+        print("=" * 50)
+        print(f"Config File: {self.config.config_path}")
+        print(f"Offline Mode: {'✅ Enabled' if self.config.is_offline_mode() else '❌ Disabled'}")
+        print()
         
+        # Custom prefixes
         prefixes = self.config.get_custom_prefixes()
-        print(f"  Custom Prefixes ({len(prefixes)}):")
-        for prefix in prefixes:
-            print(f"    - {prefix}")
+        print(f"🏷️  Custom Package Prefixes ({len(prefixes)}):")
+        if prefixes:
+            for prefix in prefixes:
+                print(f"    - {prefix}")
+        else:
+            print("    (none configured)")
+        print()
         
+        # Conflict resolution policy
+        policy = self.config.get_conflict_resolution_policy()
+        print("⚔️  Conflict Resolution Policy:")
+        system_removal = "✅ Allowed" if policy.get('allow_system_package_removal', False) else "🚫 Blocked (SAFE)"
+        print(f"    System Package Removal: {system_removal}")
+        prefer_custom = "✅ Yes" if policy.get('prefer_custom_package_removal', True) else "❌ No"
+        print(f"    Prefer Custom Package Removal: {prefer_custom}")
+        print()
+        
+        # Protected packages
+        protected = self.config.get_protected_packages()
+        print(f"🛡️  Protected Packages ({len(protected)}):")
+        if protected:
+            for pkg in protected[:10]:  # Show first 10
+                print(f"    - {pkg}")
+            if len(protected) > 10:
+                print(f"    ... and {len(protected) - 10} more")
+        else:
+            print("    (using default system protection)")
+        print()
+        
+        # Pinned versions
         pinned = self.config.version_pinning.get_all_pinned()
-        print(f"  Pinned Versions ({len(pinned)}):")
-        for package, version in list(pinned.items())[:5]:  # Show first 5
-            print(f"    - {package}: {version}")
-        if len(pinned) > 5:
-            print(f"    ... and {len(pinned) - 5} more")
+        print(f"📌 Pinned Versions ({len(pinned)}):")
+        if pinned:
+            for package, version in list(pinned.items())[:5]:  # Show first 5
+                print(f"    - {package}: {version}")
+            if len(pinned) > 5:
+                print(f"    ... and {len(pinned) - 5} more")
+        else:
+            print("    (none configured)")
+        print()
+        
+        print("💡 Configuration Tips:")
+        print("    - Add your custom package prefixes to enable safe conflict resolution")
+        print("    - Keep system package removal blocked for safety")
+        print("    - Use protected packages list for critical custom packages")
+        print("    - Example: dpm config --add-prefix 'mycompany-'")
 
 
 def main():

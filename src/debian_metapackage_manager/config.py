@@ -88,10 +88,36 @@ class Config(ConfigInterface):
         self._config_data['custom_prefixes'] = self.package_prefixes.get_prefixes()
         self._save_config()
     
+    def remove_custom_prefix(self, prefix: str) -> None:
+        """Remove a custom package prefix."""
+        self.package_prefixes.remove_prefix(prefix)
+        self._config_data['custom_prefixes'] = self.package_prefixes.get_prefixes()
+        self._save_config()
+    
     def set_pinned_version(self, package: str, version: str) -> None:
         """Set pinned version for a package."""
         self.version_pinning.set_pinned_version(package, version)
         self._config_data['pinned_versions'] = self.version_pinning.get_all_pinned()
+        self._save_config()
+    
+    def can_remove_package(self, package_name: str) -> bool:
+        """Check if a package can be removed based on custom prefixes.
+        
+        Only packages with configured custom prefixes can be removed.
+        System packages (without custom prefixes) are never removed.
+        """
+        custom_prefixes = self.get_custom_prefixes()
+        
+        # Check if package starts with any custom prefix
+        for prefix in custom_prefixes:
+            if package_name.startswith(prefix):
+                return True
+        
+        # If no custom prefix matches, it's a system package - cannot remove
+        return False
+    
+    def save_config(self) -> None:
+        """Public method to save configuration."""
         self._save_config()
     
     def _save_config(self) -> None:

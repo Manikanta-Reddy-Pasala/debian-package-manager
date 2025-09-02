@@ -1,0 +1,37 @@
+{
+  "custom_prefixes": [
+    "mycompany-",
+    "internal-",
+    "custom-",
+    "dev-",
+    "local-",
+    "meta-",
+    "bundle-"
+  ],
+  "offline_mode": false,
+  "pinned_versions": {
+    "mycompany-dev-tools": "1.2.3",
+    "internal-database": "2.1.0",
+    "custom-monitoring": "3.0.1"
+  },
+  "force_confirmation_required": true,
+  "auto_resolve_conflicts": true,
+  "conflict_resolution": {
+    "allow_system_package_removal": false,
+    "prefer_custom_package_removal": true,
+    "protected_packages": [
+      "libc6",
+      "systemd",
+      "apt",
+      "dpkg",
+      "ubuntu-minimal",
+      "ubuntu-standard",
+      "linux-image-*",
+      "linux-headers-*",
+      "openssh-server",
+      "network-manager",
+      "mycompany-critical-service"
+    ],
+    "removal_risk_threshold": "medium"
+  }
+}
