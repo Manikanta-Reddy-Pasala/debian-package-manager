@@ -17,6 +17,7 @@ class Config(ConfigInterface):
         self._config_data = self._load_config()
         self.package_prefixes = PackagePrefixes(self._config_data.get('custom_prefixes', []))
         self.version_pinning = VersionPinning(self._config_data.get('pinned_versions', {}))
+        self.removable_packages = RemovablePackages(self._config_data.get('removable_packages', []))
     
     def _get_default_config_path(self) -> str:
         """Get default configuration file path."""
@@ -51,6 +52,7 @@ class Config(ConfigInterface):
             ],
             'offline_mode': False,
             'pinned_versions': {},
+            'removable_packages': [],
             'force_confirmation_required': True,
             'auto_resolve_conflicts': True
         }
@@ -100,20 +102,58 @@ class Config(ConfigInterface):
         self._config_data['pinned_versions'] = self.version_pinning.get_all_pinned()
         self._save_config()
     
+    def add_removable_package(self, package_name: str) -> None:
+        """Add a package to the removable packages list."""
+        # Prevent adding system-critical packages
+        if self._is_system_critical_package(package_name):
+            raise ValueError(f"Cannot add system-critical package '{package_name}' to removable list")
+        
+        self.removable_packages.add_package(package_name)
+        self._config_data['removable_packages'] = self.removable_packages.get_packages()
+        self._save_config()
+    
+    def remove_removable_package(self, package_name: str) -> None:
+        """Remove a package from the removable packages list."""
+        self.removable_packages.remove_package(package_name)
+        self._config_data['removable_packages'] = self.removable_packages.get_packages()
+        self._save_config()
+    
+    def get_removable_packages(self) -> List[str]:
+        """Get list of packages that can be removed during conflicts."""
+        return self.removable_packages.get_packages()
+    
+    def _is_system_critical_package(self, package_name: str) -> bool:
+        """Check if a package is system-critical and should never be removable."""
+        critical_packages = {
+            'libc6', 'bash', 'coreutils', 'util-linux', 'systemd', 'init',
+            'kernel', 'linux-image', 'grub', 'apt', 'dpkg', 'base-files',
+            'base-passwd', 'login', 'passwd', 'sudo', 'openssh-server'
+        }
+        
+        # Check exact match or if it starts with critical package names
+        for critical in critical_packages:
+            if package_name == critical or package_name.startswith(f"{critical}-"):
+                return True
+        
+        return False
+    
     def can_remove_package(self, package_name: str) -> bool:
-        """Check if a package can be removed based on custom prefixes.
+        """Check if a package can be removed based on custom prefixes or removable packages list.
         
-        Only packages with configured custom prefixes can be removed.
-        System packages (without custom prefixes) are never removed.
+        Only packages with configured custom prefixes or explicitly listed as removable can be removed.
+        System packages (without custom prefixes and not in removable list) are never removed.
         """
-        custom_prefixes = self.get_custom_prefixes()
-        
+        # Check if package is explicitly listed as removable
+        if self.removable_packages.is_removable(package_name):
+            return True
+            
         # Check if package starts with any custom prefix
+        custom_prefixes = self.get_custom_prefixes()
         for prefix in custom_prefixes:
             if package_name.startswith(prefix):
                 return True
         
-        # If no custom prefix matches, it's a system package - cannot remove
+        # If no custom prefix matches and not in removable list, it's a system package - cannot remove
         return False
     
     def save_config(self) -> None:
@@ -181,3 +221,33 @@ class VersionPinning:
     def has_pinned_version(self, package: str) -> bool:
         """Check if package has a pinned version."""
         return package in self._pinned_versions
+
+
+class RemovablePackages:
+    """Manages packages that can be safely removed during conflicts."""
+    
+    def __init__(self, packages: List[str]):
+        """Initialize with list of removable packages."""
+        self._packages = list(packages) if packages else []
+    
+    def get_packages(self) -> List[str]:
+        """Get all removable packages."""
+        return self._packages.copy()
+    
+    def add_package(self, package_name: str) -> None:
+        """Add a package to the removable list."""
+        if package_name not in self._packages:
+            self._packages.append(package_name)
+    
+    def remove_package(self, package_name: str) -> None:
+        """Remove a package from the removable list."""
+        if package_name in self._packages:
+            self._packages.remove(package_name)
+    
+    def is_removable(self, package_name: str) -> bool:
+        """Check if package is in the removable list."""
+        return package_name in self._packages
+    
+    def clear_all(self) -> None:
+        """Clear all removable packages."""
+        self._packages.clear()

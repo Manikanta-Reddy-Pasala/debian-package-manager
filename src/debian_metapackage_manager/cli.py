@@ -8,6 +8,9 @@ from typing import Optional
 from .engine import PackageEngine
 from .config import Config
 from .conflict_handler import UserPrompt
+from .cleanup import SystemCleanup
+from .remote import RemotePackageManager
+from .interfaces import OperationResult
 
 
 class PackageManagerCLI:
@@ -17,6 +20,8 @@ class PackageManagerCLI:
         """Initialize CLI with package engine."""
         self.engine = PackageEngine()
         self.config = self.engine.config
+        self.cleanup = SystemCleanup()
+        self.remote_manager = RemotePackageManager()
     
     def run(self, args: Optional[list] = None) -> int:
         """Run the CLI with given arguments."""
@@ -49,6 +54,10 @@ class PackageManagerCLI:
                 return self._handle_config(parsed_args)
             elif parsed_args.command == 'mode':
                 return self._handle_mode(parsed_args)
+            elif parsed_args.command == 'cleanup':
+                return self._handle_cleanup(parsed_args)
+            elif parsed_args.command == 'connect':
+                return self._handle_connect(parsed_args)
             
             return 0
             
@@ -66,16 +75,22 @@ class PackageManagerCLI:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  dpm install mycompany-dev-tools          # Install a custom package
-  dpm install vim --force                  # Force install with conflicts
-  dpm remove old-package --force           # Force remove package
-  dpm info mycompany-meta-suite           # Show package information
-  dpm list --custom                       # List custom packages only
-  dpm health                              # Check system health
-  dpm fix                                 # Fix broken packages
-  dpm mode --offline                      # Switch to offline mode
-  dpm config --add-prefix "newcompany-"   # Add custom prefix (IMPORTANT!)
-  dpm config --show                       # View safety settings
+  # Local operations
+  dpm install mycompany-dev-tools          # Install a custom package locally
+  dpm remove old-package --force           # Force remove package locally
+  dpm list --custom                       # List custom packages locally
+  dpm health                              # Check local system health
+  dpm config --add-prefix "newcompany-"   # Add custom prefix locally
+  dpm cleanup --all                       # Comprehensive local cleanup
+  
+  # Remote operations
+  dpm connect user 10.0.1.5               # Connect to remote system
+  dpm connect user host.com --key ~/.ssh/id_rsa --port 2222
+  dpm install mycompany-dev-tools          # Install on connected remote system
+  dpm list --custom                       # List packages on remote system
+  dpm health                              # Check remote system health
+  dpm connect --disconnect                # Disconnect and return to local
+  dpm connect                             # Show current connection status
             """
         )
         
@@ -129,6 +144,10 @@ Examples:
                                   help='Show current configuration')
         config_parser.add_argument('--add-prefix', help='Add a custom package prefix')
         config_parser.add_argument('--remove-prefix', help='Remove a custom package prefix')
+        config_parser.add_argument('--add-removable', help='Add a package to removable packages list')
+        config_parser.add_argument('--remove-removable', help='Remove a package from removable packages list')
+        config_parser.add_argument('--list-removable', action='store_true', 
+                                  help='List all removable packages')
         config_parser.add_argument('--set-offline', action='store_true', 
                                   help='Enable offline mode')
         config_parser.add_argument('--set-online', action='store_true', 
@@ -145,165 +164,476 @@ Examples:
         mode_parser.add_argument('--auto', action='store_true', 
                                 help='Auto-detect appropriate mode')
         
+        # Cleanup command
+        cleanup_parser = subparsers.add_parser('cleanup', help='System cleanup and maintenance')
+        cleanup_parser.add_argument('--apt-cache', action='store_true', 
+                                   help='Clean APT package cache')
+        cleanup_parser.add_argument('--offline-repos', action='store_true', 
+                                   help='Clean offline repository caches')
+        cleanup_parser.add_argument('--artifactory', action='store_true', 
+                                   help='Clean artifactory cache')
+        cleanup_parser.add_argument('--all', action='store_true', 
+                                   help='Perform comprehensive cleanup')
+        cleanup_parser.add_argument('--aggressive', action='store_true', 
+                                   help='Use aggressive cleanup methods')
+        
+        # Connect command
+        connect_parser = subparsers.add_parser('connect', help='Connect to remote system or show connection status')
+        connect_parser.add_argument('user', nargs='?', help='SSH username')
+        connect_parser.add_argument('host', nargs='?', help='Remote host IP/hostname')
+        connect_parser.add_argument('--key', help='SSH private key path')
+        connect_parser.add_argument('--port', type=int, default=22, help='SSH port (default: 22)')
+        connect_parser.add_argument('--disconnect', action='store_true', help='Disconnect from remote system')
+        
         return parser
     
     def _handle_install(self, args) -> int:
         """Handle package installation."""
-        print(f"Installing package: {args.package_name}")
+        target = self.remote_manager.get_current_target()
+        print(f"Installing package '{args.package_name}' on {target}")
         
-        if args.offline:
-            self.engine.mode_manager.switch_to_offline_mode()
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            kwargs = {
+                'force': args.force,
+                'offline': args.offline,
+                'version': args.version
+            }
+            result = self.remote_manager.execute_command('install', args.package_name, **kwargs)
+        else:
+            # Execute locally
+            if args.offline:
+                self.engine.mode_manager.switch_to_offline_mode()
+            
+            result = self.engine.install_package(args.package_name, force=args.force)
         
-        result = self.engine.install_package(args.package_name, force=args.force)
-        
-        self.engine.conflict_handler.display_operation_result(
-            result.success, result.packages_affected, result.warnings, result.errors
-        )
-        
+        self._display_operation_result(result)
         return 0 if result.success else 1
     
     def _handle_remove(self, args) -> int:
         """Handle package removal."""
-        print(f"Removing package: {args.package_name}")
+        target = self.remote_manager.get_current_target()
+        print(f"Removing package '{args.package_name}' from {target}")
         
-        result = self.engine.remove_package(args.package_name, force=args.force)
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            kwargs = {
+                'force': args.force,
+                'purge': args.purge
+            }
+            result = self.remote_manager.execute_command('remove', args.package_name, **kwargs)
+        else:
+            # Execute locally
+            result = self.engine.remove_package(args.package_name, force=args.force)
         
-        self.engine.conflict_handler.display_operation_result(
-            result.success, result.packages_affected, result.warnings, result.errors
-        )
-        
+        self._display_operation_result(result)
         return 0 if result.success else 1
     
     def _handle_info(self, args) -> int:
         """Handle package info display."""
-        package_info = self.engine.get_package_info(args.package_name)
+        target = self.remote_manager.get_current_target()
         
-        if not package_info:
-            print(f"Package '{args.package_name}' not found.")
-            return 1
-        
-        dependencies = []
-        if args.dependencies:
-            dependencies = self.engine.apt.get_dependencies(args.package_name)
-        
-        self.engine.conflict_handler.display_package_info(package_info, dependencies)
-        return 0
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            result = self.remote_manager.execute_command('info', args.package_name)
+            self._display_operation_result(result)
+            return 0 if result.success else 1
+        else:
+            # Execute locally
+            package_info = self.engine.get_package_info(args.package_name)
+            
+            if not package_info:
+                print(f"Package '{args.package_name}' not found on {target}.")
+                return 1
+            
+            dependencies = []
+            if args.dependencies:
+                dependencies = self.engine.apt.get_dependencies(args.package_name)
+            
+            self.engine.conflict_handler.display_package_info(package_info, dependencies)
+            return 0
     
     def _handle_list(self, args) -> int:
         """Handle package listing."""
-        if args.broken:
-            packages = self.engine.dpkg.list_broken_packages()
-            print(f"Broken packages ({len(packages)}):")
+        target = self.remote_manager.get_current_target()
+        
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            kwargs = {
+                'custom': args.custom,
+                'broken': args.broken,
+                'metapackages': args.metapackages
+            }
+            result = self.remote_manager.execute_command('list', '', **kwargs)
+            self._display_operation_result(result)
+            return 0 if result.success else 1
         else:
-            packages = self.engine.list_installed_packages(custom_only=args.custom)
+            # Execute locally
+            if args.broken:
+                packages = self.engine.dpkg.list_broken_packages()
+                print(f"Broken packages on {target} ({len(packages)}):")
+            else:
+                packages = self.engine.list_installed_packages(custom_only=args.custom)
+                
+                if args.metapackages:
+                    packages = [pkg for pkg in packages if pkg.is_metapackage]
+                
+                print(f"Installed packages on {target} ({len(packages)}):")
             
-            if args.metapackages:
-                packages = [pkg for pkg in packages if pkg.is_metapackage]
+            if not packages:
+                print("  No packages found.")
+                return 0
             
-            print(f"Installed packages ({len(packages)}):")
-        
-        if not packages:
-            print("  No packages found.")
+            for package in packages:
+                status_icon = "✓" if package.status.value == "installed" else "✗"
+                pkg_type = ""
+                
+                if package.is_metapackage:
+                    pkg_type = " [META]"
+                elif package.is_custom:
+                    pkg_type = " [CUSTOM]"
+                
+                print(f"  {status_icon} {package.name} (v{package.version}){pkg_type}")
+            
             return 0
-        
-        for package in packages:
-            status_icon = "✓" if package.status.value == "installed" else "✗"
-            pkg_type = ""
-            
-            if package.is_metapackage:
-                pkg_type = " [META]"
-            elif package.is_custom:
-                pkg_type = " [CUSTOM]"
-            
-            print(f"  {status_icon} {package.name} (v{package.version}){pkg_type}")
-        
-        return 0
     
     def _handle_health(self, args) -> int:
         """Handle system health check."""
-        result = self.engine.check_system_health()
+        target = self.remote_manager.get_current_target()
         
-        print("System Health Check")
-        print("=" * 40)
-        
-        if result.success:
-            print("✅ System is healthy")
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            result = self.remote_manager.execute_command('health')
+            self._display_operation_result(result)
+            return 0 if result.success else 1
         else:
-            print("❌ System has issues")
-        
-        if result.warnings:
-            print(f"\n⚠️  Warnings ({len(result.warnings)}):")
-            for warning in result.warnings:
-                print(f"  - {warning}")
-        
-        if result.errors:
-            print(f"\n❌ Errors ({len(result.errors)}):")
-            for error in result.errors:
-                print(f"  - {error}")
-        
-        if args.verbose:
-            # Show mode status
-            mode_status = self.engine.mode_manager.get_mode_status()
-            print(f"\nMode Status:")
-            print(f"  Offline Mode: {mode_status['offline_mode']}")
-            print(f"  Network Available: {mode_status['network_available']}")
-            print(f"  Repositories Accessible: {mode_status['repositories_accessible']}")
-            print(f"  Pinned Packages: {mode_status['pinned_packages_count']}")
-        
-        return 0 if result.success else 1
+            # Execute locally
+            result = self.engine.check_system_health()
+            
+            print(f"System Health Check - {target}")
+            print("=" * 40)
+            
+            if result.success:
+                print("✅ System is healthy")
+            else:
+                print("❌ System has issues")
+            
+            if result.warnings:
+                print(f"\n⚠️  Warnings ({len(result.warnings)}):")
+                for warning in result.warnings:
+                    print(f"  - {warning}")
+            
+            if result.errors:
+                print(f"\n❌ Errors ({len(result.errors)}):")
+                for error in result.errors:
+                    print(f"  - {error}")
+            
+            if args.verbose:
+                # Show mode status
+                mode_status = self.engine.mode_manager.get_mode_status()
+                print(f"\nMode Status:")
+                print(f"  Offline Mode: {mode_status['offline_mode']}")
+                print(f"  Network Available: {mode_status['network_available']}")
+                print(f"  Repositories Accessible: {mode_status['repositories_accessible']}")
+                print(f"  Pinned Packages: {mode_status['pinned_packages_count']}")
+            
+            return 0 if result.success else 1
     
     def _handle_fix(self, args) -> int:
         """Handle system fixing."""
-        result = self.engine.fix_broken_system()
+        target = self.remote_manager.get_current_target()
+        print(f"Fixing broken packages on {target}")
         
-        self.engine.conflict_handler.display_operation_result(
-            result.success, result.packages_affected, result.warnings, result.errors
-        )
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            kwargs = {'force': args.force}
+            result = self.remote_manager.execute_command('fix', '', **kwargs)
+        else:
+            # Execute locally
+            result = self.engine.fix_broken_system()
         
+        self._display_operation_result(result)
         return 0 if result.success else 1
     
     def _handle_config(self, args) -> int:
         """Handle configuration management."""
-        if args.show:
-            self._show_config()
-        elif args.add_prefix:
-            self.config.add_custom_prefix(args.add_prefix)
-            self.config.save_config()
-            print(f"✅ Added custom prefix: {args.add_prefix}")
-            print(f"   Packages starting with '{args.add_prefix}' will now be treated as custom packages.")
-        elif args.remove_prefix:
-            self.config.remove_custom_prefix(args.remove_prefix)
-            print(f"✅ Removed custom prefix: {args.remove_prefix}")
-        elif args.set_offline:
-            self.config.set_offline_mode(True)
-            print("✅ Enabled offline mode")
-        elif args.set_online:
-            self.config.set_offline_mode(False)
-            print("✅ Enabled online mode")
-
-        else:
-            self._show_config()
+        target = self.remote_manager.get_current_target()
         
-        return 0
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            kwargs = {
+                'show': args.show,
+                'add_prefix': args.add_prefix,
+                'remove_prefix': args.remove_prefix,
+                'add_removable': args.add_removable,
+                'remove_removable': args.remove_removable,
+                'list_removable': args.list_removable,
+                'set_offline': args.set_offline,
+                'set_online': args.set_online
+            }
+            result = self.remote_manager.execute_command('config', '', **kwargs)
+            self._display_operation_result(result)
+            return 0 if result.success else 1
+        else:
+            # Execute locally
+            if args.show:
+                self._show_config()
+            elif args.add_prefix:
+                self.config.add_custom_prefix(args.add_prefix)
+                self.config.save_config()
+                print(f"✅ Added custom prefix on {target}: {args.add_prefix}")
+                print(f"   Packages starting with '{args.add_prefix}' will now be treated as custom packages.")
+            elif args.remove_prefix:
+                self.config.remove_custom_prefix(args.remove_prefix)
+                print(f"✅ Removed custom prefix from {target}: {args.remove_prefix}")
+            elif args.add_removable:
+                try:
+                    self.config.add_removable_package(args.add_removable)
+                    print(f"✅ Added removable package on {target}: {args.add_removable}")
+                    print(f"   This package can now be removed during conflict resolution.")
+                except ValueError as e:
+                    print(f"❌ Error: {e}")
+                    return 1
+            elif args.remove_removable:
+                self.config.remove_removable_package(args.remove_removable)
+                print(f"✅ Removed removable package from {target}: {args.remove_removable}")
+            elif args.list_removable:
+                removable = self.config.get_removable_packages()
+                print(f"📦 Removable Packages on {target} ({len(removable)}):")
+                if removable:
+                    for package in removable:
+                        print(f"  - {package}")
+                else:
+                    print("  (none configured)")
+            elif args.set_offline:
+                self.config.set_offline_mode(True)
+                print(f"✅ Enabled offline mode on {target}")
+            elif args.set_online:
+                self.config.set_offline_mode(False)
+                print(f"✅ Enabled online mode on {target}")
+            else:
+                self._show_config()
+            
+            return 0
     
     def _handle_mode(self, args) -> int:
         """Handle mode management."""
-        if args.offline:
-            self.engine.mode_manager.switch_to_offline_mode()
-        elif args.online:
-            self.engine.mode_manager.switch_to_online_mode()
-        elif args.auto:
-            mode = self.engine.mode_manager.auto_detect_mode()
-            print(f"Auto-detected mode: {mode}")
+        target = self.remote_manager.get_current_target()
+        
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            kwargs = {
+                'status': not (args.offline or args.online or args.auto),
+                'offline': args.offline,
+                'online': args.online,
+                'auto': args.auto
+            }
+            result = self.remote_manager.execute_command('mode', '', **kwargs)
+            self._display_operation_result(result)
+            return 0 if result.success else 1
         else:
-            # Show status by default
-            mode_status = self.engine.mode_manager.get_mode_status()
-            print("Mode Status:")
-            print(f"  Current Mode: {'Offline' if mode_status['offline_mode'] else 'Online'}")
-            print(f"  Network Available: {mode_status['network_available']}")
-            print(f"  Repositories Accessible: {mode_status['repositories_accessible']}")
-            print(f"  Pinned Packages: {mode_status['pinned_packages_count']}")
-            print(f"  Config Setting: {'Offline' if mode_status['config_offline_setting'] else 'Online'}")
+            # Execute locally
+            if args.offline:
+                self.engine.mode_manager.switch_to_offline_mode()
+                print(f"✅ Switched to offline mode on {target}")
+            elif args.online:
+                self.engine.mode_manager.switch_to_online_mode()
+                print(f"✅ Switched to online mode on {target}")
+            elif args.auto:
+                mode = self.engine.mode_manager.auto_detect_mode()
+                print(f"Auto-detected mode on {target}: {mode}")
+            else:
+                # Show status by default
+                mode_status = self.engine.mode_manager.get_mode_status()
+                print(f"Mode Status - {target}:")
+                print(f"  Current Mode: {'Offline' if mode_status['offline_mode'] else 'Online'}")
+                print(f"  Network Available: {mode_status['network_available']}")
+                print(f"  Repositories Accessible: {mode_status['repositories_accessible']}")
+                print(f"  Pinned Packages: {mode_status['pinned_packages_count']}")
+                print(f"  Config Setting: {'Offline' if mode_status['config_offline_setting'] else 'Online'}")
+            
+            return 0
+    
+    def _handle_cleanup(self, args) -> int:
+        """Handle system cleanup operations."""
+        target = self.remote_manager.get_current_target()
+        
+        # Check if we're connected to remote
+        if self.remote_manager.is_remote_connected():
+            # Execute on remote system
+            kwargs = {
+                'all': args.all,
+                'apt_cache': args.apt_cache,
+                'offline_repos': args.offline_repos,
+                'artifactory': args.artifactory,
+                'aggressive': args.aggressive
+            }
+            result = self.remote_manager.execute_command('cleanup', '', **kwargs)
+            self._display_operation_result(result)
+            return 0 if result.success else 1
+        else:
+            # Execute locally
+            if args.all:
+                # Perform comprehensive cleanup
+                mode = 'offline' if self.config.is_offline_mode() else 'online'
+                result = self.cleanup.perform_system_maintenance(mode)
+                
+                print(f"🧹 System Maintenance Complete - {target}")
+                print("=" * 40)
+                
+                if result.success:
+                    print("✅ Cleanup completed successfully")
+                    if result.details:
+                        space_freed = result.details.get('total_space_freed_mb', 0)
+                        operations = result.details.get('operations_performed', 0)
+                        print(f"💾 Space freed: {space_freed} MB")
+                        print(f"🔧 Operations performed: {operations}")
+                else:
+                    print("❌ Some cleanup operations failed")
+                
+                if result.warnings:
+                    print(f"\n⚠️  Warnings ({len(result.warnings)}):")
+                    for warning in result.warnings:
+                        print(f"  - {warning}")
+                
+                if result.errors:
+                    print(f"\n❌ Errors ({len(result.errors)}):")
+                    for error in result.errors:
+                        print(f"  - {error}")
+                
+                return 0 if result.success else 1
+            
+            elif args.apt_cache:
+                result = self.cleanup.clean_apt_cache(aggressive=args.aggressive)
+                print(f"🧹 APT Cache Cleanup - {target}")
+                if result.success:
+                    space_freed = result.details.get('space_freed_mb', 0) if result.details else 0
+                    print(f"✅ APT cache cleaned - {space_freed} MB freed")
+                else:
+                    print("❌ Failed to clean APT cache")
+                    for error in result.errors:
+                        print(f"  - {error}")
+                return 0 if result.success else 1
+            
+            elif args.offline_repos:
+                offline_repos = self.cleanup._discover_offline_repositories()
+                result = self.cleanup.clean_offline_repositories(offline_repos)
+                print(f"🧹 Offline Repository Cleanup - {target}")
+                if result.success:
+                    cleaned = result.details.get('cleaned_paths', []) if result.details else []
+                    space_freed = result.details.get('space_freed_mb', 0) if result.details else 0
+                    print(f"✅ Cleaned {len(cleaned)} repositories - {space_freed} MB freed")
+                else:
+                    print("❌ Failed to clean offline repositories")
+                    for error in result.errors:
+                        print(f"  - {error}")
+                return 0 if result.success else 1
+            
+            elif args.artifactory:
+                artifactory_config = self.cleanup._get_artifactory_config()
+                if not artifactory_config:
+                    print(f"⚠️  No artifactory configuration found on {target}")
+                    return 1
+                
+                result = self.cleanup.clean_artifactory_cache(artifactory_config)
+                print(f"🧹 Artifactory Cache Cleanup - {target}")
+                if result.success:
+                    space_freed = result.details.get('space_freed_mb', 0) if result.details else 0
+                    print(f"✅ Artifactory cache cleaned - {space_freed} MB freed")
+                else:
+                    print("❌ Failed to clean artifactory cache")
+                    for error in result.errors:
+                        print(f"  - {error}")
+                return 0 if result.success else 1
+            
+            else:
+                print(f"🧹 Available cleanup options for {target}:")
+                print("  --apt-cache      Clean APT package cache")
+                print("  --offline-repos  Clean offline repository caches")
+                print("  --artifactory    Clean artifactory cache")
+                print("  --all           Perform comprehensive cleanup")
+                print("  --aggressive    Use aggressive cleanup methods")
+                return 0
+    
+    def _display_operation_result(self, result: OperationResult) -> None:
+        """Display operation result in a consistent format."""
+        if hasattr(self.engine, 'conflict_handler'):
+            self.engine.conflict_handler.display_operation_result(
+                result.success, result.packages_affected, result.warnings, result.errors
+            )
+        else:
+            # Fallback display for remote operations
+            if result.success:
+                print("✅ Operation completed successfully")
+                if result.packages_affected:
+                    print(f"📦 Packages affected: {len(result.packages_affected)}")
+                    for pkg in result.packages_affected[:5]:
+                        print(f"  - {pkg.name}")
+            else:
+                print("❌ Operation failed")
+            
+            if result.warnings:
+                print(f"⚠️  Warnings: {len(result.warnings)}")
+                for warning in result.warnings:
+                    print(f"  - {warning}")
+            
+            if result.errors:
+                print(f"❌ Errors: {len(result.errors)}")
+                for error in result.errors:
+                    print(f"  - {error}")
+            
+            # Show remote output if available
+            if result.details and 'stdout' in result.details:
+                stdout = result.details['stdout'].strip()
+                if stdout:
+                    print(f"\n📄 Remote output:\n{stdout}")
+    
+    def _handle_connect(self, args) -> int:
+        """Handle connection management."""
+        if args.disconnect:
+            # Disconnect from remote system
+            if self.remote_manager.is_remote_connected():
+                target = self.remote_manager.get_current_target()
+                self.remote_manager.disconnect()
+                print(f"✅ Disconnected from {target}")
+                print("🏠 Now executing commands locally")
+            else:
+                print("ℹ️  Not connected to any remote system")
+            return 0
+        
+        if not args.user or not args.host:
+            # Show connection status
+            if self.remote_manager.is_remote_connected():
+                target = self.remote_manager.get_current_target()
+                print(f"🌐 Connected to: {target}")
+                print("   All DPM commands will execute on the remote system")
+                print("   Use 'dpm connect --disconnect' to return to local execution")
+            else:
+                print("🏠 Executing locally")
+                print("   Use 'dpm connect <user> <host>' to connect to remote system")
+            return 0
+        
+        # Connect to remote system
+        print(f"🔌 Connecting to {args.user}@{args.host}:{args.port}...")
+        
+        success = self.remote_manager.connect(args.host, args.user, args.key, args.port)
+        
+        if success:
+            print(f"✅ Successfully connected to {args.user}@{args.host}:{args.port}")
+            print("🌐 All DPM commands will now execute on the remote system")
+            print("   Use 'dpm connect --disconnect' to return to local execution")
+        else:
+            print(f"❌ Failed to connect to {args.user}@{args.host}:{args.port}")
+            print("   Check SSH key, credentials, and network connectivity")
+            return 1
         
         return 0
     
@@ -329,6 +659,18 @@ Examples:
         print("🛡️  Safety Policy:")
         print("    System Package Removal: 🚫 NEVER ALLOWED (SAFE)")
         print("    Custom Package Removal: ✅ Only packages with configured prefixes")
+        print()
+        
+        # Removable packages
+        removable = self.config.get_removable_packages()
+        print(f"📦 Removable Packages ({len(removable)}):")
+        if removable:
+            for package in removable[:5]:  # Show first 5
+                print(f"    - {package}")
+            if len(removable) > 5:
+                print(f"    ... and {len(removable) - 5} more")
+        else:
+            print("    (none configured)")
         print()
         
         # Pinned versions

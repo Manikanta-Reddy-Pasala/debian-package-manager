@@ -1,3 +1,5 @@
+<!-- @format -->
+
 # Debian Package Manager
 
 Intelligent package management for custom Debian package systems with offline/online mode support and advanced dependency resolution.
@@ -7,6 +9,9 @@ Intelligent package management for custom Debian package systems with offline/on
 - **Dual Mode Operation**: Support for both offline (pinned versions) and online/artifactory modes
 - **Intelligent Dependency Resolution**: Advanced conflict detection and resolution with user confirmation
 - **Custom Package Recognition**: Configurable prefixes for identifying custom packages
+- **Removable Packages Management**: JSON-based configuration for packages that can be safely removed during conflicts
+- **Enhanced System Cleanup**: Comprehensive cleanup functionality for APT cache, offline repositories, and artifactory
+- **Remote System Execution**: SSH-based remote package management across multiple systems
 - **Force Operations**: Safe force installation/removal with comprehensive user confirmation
 - **System Health Monitoring**: Built-in health checks and automatic system repair
 - **Standalone Executable**: Works without system Python dependencies
@@ -15,12 +20,14 @@ Intelligent package management for custom Debian package systems with offline/on
 ## Installation
 
 ### Quick Install (Recommended)
+
 ```bash
 # Download and run the installation script
 sudo ./install.sh
 ```
 
 ### Manual Installation from Source
+
 ```bash
 # Clone the repository
 git clone https://github.com/example/debian-package-manager.git
@@ -35,6 +42,7 @@ sudo ./install.sh
 ```
 
 ### Development Installation
+
 ```bash
 # Clone and install in development mode
 git clone https://github.com/example/debian-package-manager.git
@@ -50,6 +58,7 @@ pip install -e ".[dev]"
 ```
 
 ### System Requirements
+
 - **Operating System**: Ubuntu 18.04+ or Debian 10+
 - **Python**: 3.8 or higher
 - **Privileges**: Root access required for package operations
@@ -76,6 +85,7 @@ dpm mode --status                   # Check offline/online mode
 ## Detailed Usage
 
 ### Package Operations
+
 ```bash
 # Install packages
 dpm install <package-name>                    # Standard installation
@@ -94,6 +104,7 @@ dpm info <package-name> --dependencies       # Include dependency tree
 ```
 
 ### System Management
+
 ```bash
 # List packages
 dpm list                           # All installed packages
@@ -109,6 +120,7 @@ dpm fix --force                  # Aggressive fixing methods
 ```
 
 ### Configuration Management
+
 ```bash
 # View configuration
 dpm config --show                           # Show all settings
@@ -117,12 +129,60 @@ dpm config --show                           # Show all settings
 dpm config --add-prefix "newcompany-"       # Add custom prefix
 dpm config --remove-prefix "oldcompany-"    # Remove prefix
 
+# Manage removable packages
+dpm config --add-removable "old-library"    # Add package to removable list
+dpm config --remove-removable "old-lib"     # Remove from removable list
+dpm config --list-removable                 # List all removable packages
+
 # Mode settings
 dpm config --set-offline                    # Enable offline mode
 dpm config --set-online                     # Enable online mode
 ```
 
+### System Cleanup and Maintenance
+
+```bash
+# Comprehensive cleanup
+dpm cleanup --all                           # Full system cleanup
+dpm cleanup --all --aggressive              # Aggressive cleanup
+
+# Specific cleanup operations
+dpm cleanup --apt-cache                     # Clean APT package cache
+dpm cleanup --offline-repos                 # Clean offline repository caches
+dpm cleanup --artifactory                   # Clean artifactory cache
+```
+
+### Remote System Management
+
+```bash
+# Connect to remote system (all subsequent commands execute remotely)
+dpm connect user 10.0.1.5                  # Connect via SSH
+dpm connect user host.com --key ~/.ssh/id_rsa --port 2222
+
+# Check connection status
+dpm connect                                 # Show current connection status
+
+# All regular DPM commands now execute on the remote system
+dpm install my-package                      # Install on remote system
+dpm remove old-package                      # Remove from remote system
+dpm list --custom                           # List remote packages
+dpm health                                  # Check remote system health
+dpm config --add-prefix "company-"         # Configure remote system
+dpm cleanup --all                           # Clean remote system
+
+# Disconnect and return to local execution
+dpm connect --disconnect                    # Return to local execution
+```
+
+**Key Benefits of Connection State Approach:**
+
+- **Seamless Experience**: No need to prefix every command with `remote exec`
+- **Consistent Interface**: All DPM commands work the same way locally and remotely
+- **Clear Context**: Always know if you're operating locally or remotely
+- **Simple Switching**: Easy to switch between local and remote execution
+
 ### Mode Management
+
 ```bash
 # Check current mode
 dpm mode --status                  # Show detailed mode status
@@ -138,29 +198,61 @@ dpm mode --auto                    # Auto-detect appropriate mode
 The system uses a hierarchical configuration approach:
 
 ### Configuration Files
+
 - **System Config**: `/etc/debian-package-manager/config.json`
 - **User Config**: `~/.config/debian-package-manager/config.json`
 
 ### Configuration Options
+
 ```json
 {
-    "package_prefixes": {
-        "custom_prefixes": [
-            "mycompany-",
-            "custom-",
-            "meta-"
-        ]
-    },
-    "offline_mode": false,
-    "version_pinning": {
-        "mycompany-dev-tools": "1.2.3",
-        "custom-database": "2.1.0"
-    }
+  "custom_prefixes": [
+    "mycompany-",
+    "internal-",
+    "custom-",
+    "dev-",
+    "local-",
+    "meta-",
+    "bundle-"
+  ],
+  "removable_packages": [
+    "old-library",
+    "deprecated-tool",
+    "temp-package",
+    "test-package"
+  ],
+  "offline_mode": false,
+  "pinned_versions": {
+    "mycompany-core": "1.2.3",
+    "internal-utils": "2.1.0"
+  },
+  "force_confirmation_required": true,
+  "auto_resolve_conflicts": true
 }
 ```
 
+### Removable Packages Configuration
+
+The `removable_packages` list allows you to specify packages that can be safely removed during conflict resolution, even if they don't match your custom prefixes:
+
+```bash
+# Add packages that can be removed during conflicts
+dpm config --add-removable "old-library"
+dpm config --add-removable "deprecated-service"
+
+# View all removable packages
+dpm config --list-removable
+
+# Remove from removable list
+dpm config --remove-removable "old-library"
+```
+
+**Important**: System-critical packages (like `libc6`, `bash`, `systemd`, etc.) cannot be added to the removable list for safety.
+
 ### Custom Package Prefixes
+
 Configure prefixes to identify your organization's packages:
+
 ```bash
 # Add prefixes for your packages
 dpm config --add-prefix "acme-"
@@ -171,7 +263,9 @@ dpm config --add-prefix "internal-"
 ```
 
 ### Conflict Resolution Policy
+
 Configure how the system handles package conflicts:
+
 ```bash
 # View current conflict resolution settings
 dpm config --show
@@ -191,6 +285,7 @@ dpm config --remove-protected "old-package"
 ```
 
 ### Safety Features
+
 The system includes several safety features to protect your system:
 
 - **System Package Protection**: By default, system packages cannot be removed during conflict resolution
@@ -214,10 +309,13 @@ isort src/ tests/
 # Type checking
 mypy src/
 ```
+
 ## A
+
 dvanced Usage
 
 ### Configuration
+
 ```bash
 # Show current configuration
 dpm config --show
@@ -230,6 +328,7 @@ dpm config --set-offline
 ```
 
 ### Mode Management
+
 ```bash
 # Check current mode
 dpm mode --status
@@ -241,6 +340,7 @@ dpm mode --auto       # Auto-detect best mode
 ```
 
 ### System Maintenance
+
 ```bash
 # Check system health
 dpm health --verbose
