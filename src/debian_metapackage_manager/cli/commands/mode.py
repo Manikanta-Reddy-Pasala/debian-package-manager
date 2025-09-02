@@ -27,8 +27,6 @@ class ModeCommandHandler(CommandHandler):
                            help='Switch to offline mode')
         parser.add_argument('--online', action='store_true', 
                            help='Switch to online mode')
-        parser.add_argument('-a', '--auto', action='store_true', 
-                           help='Auto-detect appropriate mode')
         return parser
     
     def handle(self, args: argparse.Namespace) -> int:
@@ -46,12 +44,11 @@ class ModeCommandHandler(CommandHandler):
         if args.offline:
             self.engine.mode_manager.switch_to_offline_mode()
             print(f"✅ Switched to offline mode on {target}")
+            self._show_mode_status(target)
         elif args.online:
             self.engine.mode_manager.switch_to_online_mode()
             print(f"✅ Switched to online mode on {target}")
-        elif args.auto:
-            mode = self.engine.mode_manager.auto_detect_mode()
-            print(f"Auto-detected mode on {target}: {mode}")
+            self._show_mode_status(target)
         else:
             # Show status by default
             self._show_mode_status(target)
@@ -61,10 +58,9 @@ class ModeCommandHandler(CommandHandler):
     def _handle_remote_mode(self, args: argparse.Namespace) -> int:
         """Handle remote mode management."""
         kwargs = {
-            'status': not (args.offline or args.online or args.auto),
+            'status': not (args.offline or args.online),
             'offline': args.offline,
-            'online': args.online,
-            'auto': args.auto
+            'online': args.online
         }
         result = self.remote_manager.execute_command('mode', '', **kwargs)
         return 0 if result.success else 1

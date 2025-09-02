@@ -352,8 +352,6 @@ class RemotePackageManager:
             cmd.append('--offline')
         if kwargs.get('online'):
             cmd.append('--online')
-        if kwargs.get('auto'):
-            cmd.append('--auto')
         return cmd
     
     def _build_cleanup_command(self, **kwargs) -> List[str]:

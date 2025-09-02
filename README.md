@@ -157,7 +157,7 @@ dpm health                        # Check system health
 dpm fix                          # Fix broken packages
 dpm cleanup --all                # Clean up system
 dpm mode --status                # Check current mode
-dpm mode --offline|--online      # Switch modes
+dpm mode --offline|--online      # Switch modes (enables/disables Artifactory)
 ```
 
 ### Remote Management
@@ -369,6 +369,24 @@ DPM provides intelligent force operations that analyze impact before proceeding:
 - Requires explicit user confirmation (type "YES")
 
 Both operations use advanced dependency analysis to minimize system impact while achieving the desired outcome.
+
+### Artifactory Mode Management
+
+DPM automatically manages Artifactory integration when switching between offline and online modes:
+
+**Offline Mode (`dpm mode --offline`)**:
+- Enables Artifactory repository configuration
+- Sets up offline package cache
+- Enables pinned version resolution
+- Prepares offline dependencies
+
+**Online Mode (`dpm mode --online`)**:
+- Restores default repository configuration
+- Disables offline package cache
+- Enables latest version resolution
+- Cleans offline dependencies
+
+Mode switching automatically executes the appropriate Artifactory scripts to ensure proper configuration.
 
 ### System Maintenance
 

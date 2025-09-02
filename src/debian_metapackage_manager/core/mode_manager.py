@@ -1,6 +1,7 @@
 """Enhanced mode management for offline and online package operations."""
 
 import subprocess
+import os
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Tuple
 from ..config import Config
@@ -119,24 +120,64 @@ class ModeManager:
     def switch_to_offline_mode(self) -> None:
         """Switch to offline mode."""
         self.config.set_offline_mode(True)
+        self._execute_artifactory_script("enable")
         print("Switched to offline mode - using pinned versions")
     
     def switch_to_online_mode(self) -> None:
         """Switch to online mode."""
         self.config.set_offline_mode(False)
+        self._execute_artifactory_script("disable")
         print("Switched to online mode - using latest versions")
         
         # Clear network cache to force re-detection
         self.network_checker.clear_cache()
     
+    def _execute_artifactory_script(self, action: str) -> bool:
+        """Execute Artifactory enable/disable script."""
+        try:
+            # Determine script path
+            script_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts")
+            script_name = "enable-artifactory.sh" if action == "enable" else "disable-artifactory.sh"
+            script_path = os.path.join(script_dir, script_name)
+            
+            # Check if script exists
+            if not os.path.exists(script_path):
+                print(f"Warning: Artifactory script not found: {script_path}")
+                return False
+            
+            # Make script executable if needed
+            if not os.access(script_path, os.X_OK):
+                os.chmod(script_path, 0o755)
+            
+            # Execute script
+            print(f"Executing Artifactory {action} script...")
+            result = subprocess.run([script_path], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"Artifactory {action} script executed successfully")
+                if result.stdout:
+                    print(result.stdout)
+                return True
+            else:
+                print(f"Warning: Artifactory {action} script failed with return code {result.returncode}")
+                if result.stderr:
+                    print(f"Error output: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            print(f"Warning: Failed to execute Artifactory {action} script: {e}")
+            return False
+    
     def auto_detect_mode(self) -> str:
-        """Auto-detect the appropriate mode based on system state."""
+        """Auto-detect the appropriate mode based on system state.
+        
+        NOTE: This method no longer automatically switches modes to prevent
+        unintended Artifactory script execution. Use explicit mode switching instead.
+        """
         if not self.network_checker.is_network_available():
-            self.switch_to_offline_mode()
             return "offline (no network)"
         
         if not self.network_checker.are_repositories_accessible():
-            self.switch_to_offline_mode()
             return "offline (repositories unavailable)"
         
         # Check if we have pinned versions configured
@@ -145,7 +186,6 @@ class ModeManager:
             return "offline (configured with pinned versions)"
         
         # Default to online mode if everything is available
-        self.switch_to_online_mode()
         return "online (latest versions)"
     
     def get_mode_status(self) -> ModeStatus:

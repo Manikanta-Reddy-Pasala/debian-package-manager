@@ -73,7 +73,6 @@ Examples:
   dpm install --online package-name       # Force online mode
   dpm install --offline package-name      # Force offline mode
   dpm mode --status                       # Check current mode
-  dpm mode --auto                         # Auto-detect mode
         """
     
     def display_operation_result(self, result: OperationResult) -> None:
