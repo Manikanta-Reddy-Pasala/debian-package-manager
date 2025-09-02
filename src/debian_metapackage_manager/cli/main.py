@@ -8,7 +8,7 @@ from .base import CLIBase, ValidationError
 from .commands import (
     InstallCommandHandler, RemoveCommandHandler, ModeCommandHandler,
     InfoCommandHandler, ListCommandHandler, HealthCommandHandler,
-    FixCommandHandler, ConfigCommandHandler, CleanupCommandHandler,
+    FixCommandHandler, CleanupCommandHandler,
     ConnectCommandHandler
 )
 from ..core.managers import PackageEngine
@@ -44,7 +44,6 @@ class PackageManagerCLI(CLIBase):
         self.register_handler('list', ListCommandHandler(self.engine, self.remote_manager))
         self.register_handler('health', HealthCommandHandler(self.engine, self.remote_manager))
         self.register_handler('fix', FixCommandHandler(self.engine, self.remote_manager))
-        self.register_handler('config', ConfigCommandHandler(self.engine, self.remote_manager))
         self.register_handler('cleanup', CleanupCommandHandler(self.engine, self.remote_manager, self.cleanup))
         self.register_handler('connect', ConnectCommandHandler(self.engine, self.remote_manager))
     

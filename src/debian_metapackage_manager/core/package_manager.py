@@ -22,7 +22,7 @@ class PackageManager:
     
     def install_package(self, name: str, force: bool = False, 
                        version: Optional[str] = None) -> OperationResult:
-        """Install a package with dependency resolution."""
+        """Install a package with intelligent upgrade handling and dependency resolution."""
         print(f"Installing package: {name}")
         
         # Get appropriate version for current mode
@@ -37,19 +37,61 @@ class PackageManager:
             is_custom=self.classifier.is_custom_package(name)
         )
         
-        # Check if already installed
-        if self.apt.is_installed(name) and not force:
+        # Check if already installed and handle upgrades intelligently
+        if self.apt.is_installed(name):
+            return self._handle_already_installed_package(package, version, force)
+        
+        # Package not installed - proceed with installation
+        return self._perform_new_installation(package, version, force)
+    
+    def _handle_already_installed_package(self, package: Package, target_version: Optional[str], 
+                                         force: bool) -> OperationResult:
+        """Handle installation when package is already installed - check for upgrades."""
+        current_info = self.apt.get_package_info(package.name)
+        
+        if not current_info:
+            # Package shows as installed but we can't get info - treat as corrupted
+            print(f"Warning: {package.name} appears installed but package info unavailable")
+            return self._perform_new_installation(package, target_version, force)
+        
+        current_version = current_info.version
+        print(f"Package {package.name} is already installed (v{current_version})")
+        
+        # If no specific version requested, check if upgrade is available
+        if not target_version:
+            # Auto-upgrade check - upgrade if newer version available
+            if self._is_package_upgradable(package.name):
+                return self._perform_upgrade(package, current_version, force)
+            else:
+                print(f"Package {package.name} is up to date")
+                return OperationResult(
+                    success=True,
+                    packages_affected=[package],
+                    warnings=[f"Package {package.name} is already installed and up to date"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+        
+        # Specific version requested - check if we need to upgrade/downgrade
+        if current_version == target_version:
+            print(f"Package {package.name} v{target_version} is already installed")
             return OperationResult(
                 success=True,
                 packages_affected=[package],
-                warnings=[f"Package {name} is already installed"],
+                warnings=[f"Package {package.name} v{target_version} is already installed"],
                 errors=[],
                 user_confirmations_required=[]
             )
         
+        # Different version requested - perform upgrade/downgrade
+        print(f"Upgrading {package.name} from v{current_version} to v{target_version}")
+        return self._perform_version_change(package, current_version, target_version, force)
+    
+    def _perform_new_installation(self, package: Package, version: Optional[str], force: bool) -> OperationResult:
+        """Perform installation of a new package."""
         try:
-            # Try installation
-            success = self.apt.install(name, version)
+            # Use --no-remove flag to prevent removing other packages
+            success = self._safe_install_with_no_remove(package.name, version)
             
             if success:
                 return OperationResult(
@@ -67,7 +109,7 @@ class PackageManager:
                         success=False,
                         packages_affected=[],
                         warnings=[],
-                        errors=[f"Failed to install {name}"],
+                        errors=[f"Failed to install {package.name}"],
                         user_confirmations_required=[]
                     )
                     
@@ -85,6 +127,148 @@ class PackageManager:
                 errors=[error_msg],
                 user_confirmations_required=[]
             )
+    
+    def _perform_upgrade(self, package: Package, current_version: str, force: bool) -> OperationResult:
+        """Perform package upgrade to latest available version."""
+        print(f"Upgrading {package.name} from v{current_version}")
+        
+        try:
+            # Use --only-upgrade to ensure we only upgrade, don't install new packages
+            success = self._safe_upgrade_package(package.name)
+            
+            if success:
+                # Get new version info
+                new_info = self.apt.get_package_info(package.name)
+                new_version = new_info.version if new_info else "unknown"
+                
+                return OperationResult(
+                    success=True,
+                    packages_affected=[Package(package.name, new_version, package.is_metapackage, package.is_custom)],
+                    warnings=[f"Upgraded {package.name} from v{current_version} to v{new_version}"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+            else:
+                if force:
+                    return self._force_install_package(package)
+                else:
+                    return OperationResult(
+                        success=False,
+                        packages_affected=[],
+                        warnings=[],
+                        errors=[f"Failed to upgrade {package.name}"],
+                        user_confirmations_required=[]
+                    )
+                    
+        except Exception as e:
+            error_msg = f"Error during upgrade: {str(e)}"
+            print(error_msg)
+            
+            return OperationResult(
+                success=False,
+                packages_affected=[],
+                warnings=[],
+                errors=[error_msg],
+                user_confirmations_required=[]
+            )
+    
+    def _perform_version_change(self, package: Package, current_version: str, target_version: str, force: bool) -> OperationResult:
+        """Perform upgrade or downgrade to specific version."""
+        operation = "upgrade" if target_version > current_version else "downgrade"
+        print(f"{operation.capitalize()}ing {package.name} from v{current_version} to v{target_version}")
+        
+        try:
+            success = self._safe_install_with_no_remove(package.name, target_version)
+            
+            if success:
+                return OperationResult(
+                    success=True,
+                    packages_affected=[Package(package.name, target_version, package.is_metapackage, package.is_custom)],
+                    warnings=[f"{operation.capitalize()}d {package.name} from v{current_version} to v{target_version}"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+            else:
+                if force:
+                    return self._force_install_package(package)
+                else:
+                    return OperationResult(
+                        success=False,
+                        packages_affected=[],
+                        warnings=[],
+                        errors=[f"Failed to {operation} {package.name} to v{target_version}"],
+                        user_confirmations_required=[]
+                    )
+                    
+        except Exception as e:
+            error_msg = f"Error during {operation}: {str(e)}"
+            print(error_msg)
+            
+            return OperationResult(
+                success=False,
+                packages_affected=[],
+                warnings=[],
+                errors=[error_msg],
+                user_confirmations_required=[]
+            )
+    
+    def _safe_install_with_no_remove(self, package_name: str, version: Optional[str]) -> bool:
+        """Install package with --no-remove flag to prevent removing other packages."""
+        try:
+            import subprocess
+            
+            if version:
+                package_spec = f"{package_name}={version}"
+            else:
+                package_spec = package_name
+            
+            # Use apt-get with --no-remove to prevent removing other packages
+            cmd = ['sudo', 'apt-get', 'install', '-y', '--no-remove', package_spec]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"Successfully installed: {package_spec}")
+                return True
+            else:
+                print(f"Failed to install {package_spec}: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            print(f"Error installing {package_name}: {e}")
+            return False
+    
+    def _safe_upgrade_package(self, package_name: str) -> bool:
+        """Upgrade package using --only-upgrade flag."""
+        try:
+            import subprocess
+            
+            # Use apt-get with --only-upgrade to only upgrade existing packages
+            cmd = ['sudo', 'apt-get', 'install', '-y', '--only-upgrade', package_name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"Successfully upgraded: {package_name}")
+                return True
+            else:
+                print(f"Failed to upgrade {package_name}: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            print(f"Error upgrading {package_name}: {e}")
+            return False
+    
+    def _is_package_upgradable(self, package_name: str) -> bool:
+        """Check if package has available upgrades."""
+        try:
+            import subprocess
+            
+            cmd = ['apt', 'list', '--upgradable', package_name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            return package_name in result.stdout and 'upgradable' in result.stdout
+            
+        except Exception:
+            return False
     
     def remove_package(self, name: str, force: bool = False) -> OperationResult:
         """Remove a package."""

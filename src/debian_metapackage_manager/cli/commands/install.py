@@ -22,21 +22,13 @@ class InstallCommandHandler(CommandHandler):
         """Add install command parser."""
         parser = subparsers.add_parser('install', help='Install a package or metapackage')
         parser.add_argument('package_name', help='Name of the package to install')
+        parser.add_argument('--version', help='Specific version to install')
         parser.add_argument('--force', action='store_true', 
                            help='Force installation even with conflicts')
-        parser.add_argument('--offline', action='store_true', 
-                           help='Use offline mode with pinned versions')
-        parser.add_argument('--online', action='store_true', 
-                           help='Use online mode with latest versions')
-        parser.add_argument('--version', help='Specific version to install')
         return parser
     
     def handle(self, args: argparse.Namespace) -> int:
         """Handle install command."""
-        # Validate arguments
-        if args.offline and args.online:
-            raise ValidationError("Cannot specify both --offline and --online modes")
-        
         target = self.remote_manager.get_current_target()
         print(f"Installing package '{args.package_name}' on {target}")
         
@@ -48,23 +40,17 @@ class InstallCommandHandler(CommandHandler):
     
     def _handle_local_install(self, args: argparse.Namespace) -> int:
         """Handle local installation."""
-        # Set mode if specified
-        if args.offline:
-            print("Switching to offline mode for this operation")
-            self.engine.mode_manager.switch_to_offline_mode()
-        elif args.online:
-            print("Switching to online mode for this operation")
-            self.engine.mode_manager.switch_to_online_mode()
-        
-        result = self.engine.install_package(args.package_name, force=args.force)
+        result = self.engine.install_package(
+            args.package_name, 
+            force=args.force,
+            version=args.version
+        )
         return 0 if result.success else 1
     
     def _handle_remote_install(self, args: argparse.Namespace) -> int:
         """Handle remote installation."""
         kwargs = {
             'force': args.force,
-            'offline': args.offline,
-            'online': args.online,
             'version': args.version
         }
         result = self.remote_manager.execute_command('install', args.package_name, **kwargs)

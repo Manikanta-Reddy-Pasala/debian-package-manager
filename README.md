@@ -138,10 +138,8 @@ dpm mode --status                   # Check offline/online mode
 ```bash
 # Install packages
 dpm install <package-name>                    # Standard installation
-dpm install <package-name> --force           # Force install with conflicts
-dpm install <package-name> --online          # Force online mode (latest versions)
-dpm install <package-name> --offline         # Force offline mode (pinned versions)
 dpm install <package-name> --version 1.2.3   # Install specific version
+dpm install <package-name> --version 1.2.3 --force # Force install specific version with conflicts
 
 # Remove packages
 dpm remove <package-name>                     # Standard removal

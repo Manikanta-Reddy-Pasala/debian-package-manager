@@ -297,14 +297,10 @@ class RemotePackageManager:
         """Build remote install command."""
         cmd = ['dpm', 'install', package_name]
         
-        if kwargs.get('force'):
-            cmd.append('--force')
-        if kwargs.get('offline'):
-            cmd.append('--offline')
-        if kwargs.get('online'):
-            cmd.append('--online')
         if kwargs.get('version'):
             cmd.extend(['--version', kwargs['version']])
+        if kwargs.get('force'):
+            cmd.append('--force')
         
         return cmd
     
@@ -327,10 +323,14 @@ class RemotePackageManager:
         """Build remote list command."""
         cmd = ['dpm', 'list']
         
-        if kwargs.get('custom'):
-            cmd.append('--custom')
+        if kwargs.get('all'):
+            cmd.append('--all')
         if kwargs.get('broken'):
             cmd.append('--broken')
+        if kwargs.get('metapackages'):
+            cmd.append('--metapackages')
+        if kwargs.get('simple'):
+            cmd.append('--simple')
         
         return cmd
     
