@@ -38,10 +38,26 @@ check_docker() {
         exit 1
     fi
     
-    if ! command -v docker-compose &> /dev/null; then
+    # Check for Docker Compose (both standalone and plugin versions)
+    COMPOSE_AVAILABLE=false
+    COMPOSE_CMD=""
+    
+    if command -v docker-compose &> /dev/null; then
+        COMPOSE_AVAILABLE=true
+        COMPOSE_CMD="docker-compose"
+        print_status "Found Docker Compose (standalone version)"
+    elif docker compose version &> /dev/null; then
+        COMPOSE_AVAILABLE=true
+        COMPOSE_CMD="docker compose"
+        print_status "Found Docker Compose (plugin version)"
+    fi
+    
+    if [ "$COMPOSE_AVAILABLE" = false ]; then
         print_error "Docker Compose is required but not installed"
         print_status "Please install Docker Compose:"
         echo "  Ubuntu/Debian: sudo apt install docker-compose"
+        echo "  Or install Docker Desktop which includes the plugin version"
+        echo "  Or visit: https://docs.docker.com/compose/install/"
         exit 1
     fi
     
@@ -62,13 +78,14 @@ check_docker() {
         echo "  Then log out and log back in"
         print_status "Continuing with sudo..."
         DOCKER_CMD="sudo docker"
-        COMPOSE_CMD="sudo docker-compose"
+        COMPOSE_CMD="sudo $COMPOSE_CMD"
     else
         DOCKER_CMD="docker"
-        COMPOSE_CMD="docker-compose"
+        # COMPOSE_CMD is already set above
     fi
     
     print_success "Docker is available and running"
+    print_status "Using Docker Compose command: $COMPOSE_CMD"
 }
 
 check_docker_structure() {
@@ -113,8 +130,18 @@ build_docker_environment() {
 create_wrapper_scripts() {
     print_status "Creating wrapper scripts..."
     
+    # Detect which Docker Compose command to use
+    local compose_cmd=""
+    if command -v docker-compose &> /dev/null; then
+        compose_cmd="docker-compose"
+    elif docker compose version &> /dev/null; then
+        compose_cmd="docker compose"
+    else
+        compose_cmd="docker-compose"  # fallback
+    fi
+    
     # Create main start script
-    cat > dpm-docker-start.sh << 'EOF'
+    cat > dpm-docker-start.sh << EOF
 #!/bin/bash
 # Start DPM Docker Environment
 
@@ -122,15 +149,25 @@ set -e
 
 echo "🐳 Starting DPM Docker Environment..."
 
+# Detect Docker Compose command
+if command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+else
+    echo "❌ Docker Compose not found"
+    exit 1
+fi
+
 # Change to docker directory
 cd docker
 
 # Check if container is already running
-if docker-compose ps | grep -q "dpm-dev.*Up"; then
+if \$COMPOSE_CMD ps | grep -q "dpm-dev.*Up"; then
     echo "✅ Container is already running"
 else
     echo "🚀 Starting container..."
-    docker-compose up -d
+    \$COMPOSE_CMD up -d
     
     # Wait for container to be ready
     echo "⏳ Waiting for container to be ready..."
@@ -142,27 +179,38 @@ echo "   Use 'exit' to leave the container (it will keep running)"
 echo "   Use './dpm-docker-stop.sh' to fully stop the environment"
 echo ""
 
-docker-compose exec dpm-environment /bin/bash
+\$COMPOSE_CMD exec dpm-environment /bin/bash
 
 echo "👋 Exited DPM environment"
 EOF
 
     # Create stop script
-    cat > dpm-docker-stop.sh << 'EOF'
+    cat > dpm-docker-stop.sh << EOF
 #!/bin/bash
 # Stop DPM Docker Environment
 
 set -e
 
 echo "🛑 Stopping DPM Docker Environment..."
+
+# Detect Docker Compose command
+if command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+else
+    echo "❌ Docker Compose not found"
+    exit 1
+fi
+
 cd docker
-docker-compose down
+\$COMPOSE_CMD down
 
 echo "✅ DPM Docker environment stopped"
 EOF
 
     # Create clean script
-    cat > dpm-docker-clean.sh << 'EOF'
+    cat > dpm-docker-clean.sh << EOF
 #!/bin/bash
 # Clean DPM Docker Environment
 
@@ -173,10 +221,20 @@ echo "This will remove containers, images, and volumes"
 read -p "Are you sure? (y/N): " -n 1 -r
 echo
 
-if [[ $REPLY =~ ^[Yy]$ ]]; then
+if [[ \$REPLY =~ ^[Yy]\$ ]]; then
+    # Detect Docker Compose command
+    if command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
+    elif docker compose version &> /dev/null; then
+        COMPOSE_CMD="docker compose"
+    else
+        echo "❌ Docker Compose not found"
+        exit 1
+    fi
+    
     cd docker
     echo "🗑️  Removing containers and volumes..."
-    docker-compose down -v
+    \$COMPOSE_CMD down -v
     
     echo "🗑️  Removing Docker image..."
     docker rmi dpm-environment 2>/dev/null || true
@@ -191,7 +249,7 @@ fi
 EOF
 
     # Create rebuild script
-    cat > dpm-docker-rebuild.sh << 'EOF'
+    cat > dpm-docker-rebuild.sh << EOF
 #!/bin/bash
 # Rebuild DPM Docker Environment
 
@@ -199,19 +257,29 @@ set -e
 
 echo "🔄 Rebuilding DPM Docker Environment..."
 
+# Detect Docker Compose command
+if command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+else
+    echo "❌ Docker Compose not found"
+    exit 1
+fi
+
 cd docker
 
 echo "🛑 Stopping existing containers..."
-docker-compose down
+\$COMPOSE_CMD down
 
 echo "🗑️  Removing old image..."
 docker rmi dpm-environment 2>/dev/null || true
 
 echo "🔨 Building new image..."
-docker-compose build --no-cache
+\$COMPOSE_CMD build --no-cache
 
 echo "🚀 Starting new environment..."
-docker-compose up -d
+\$COMPOSE_CMD up -d
 
 echo "✅ Rebuild completed"
 echo "Use './dpm-docker-start.sh' to connect to the environment"
@@ -302,7 +370,14 @@ case "${1:-}" in
     --clean)
         print_status "🧹 Cleaning up DPM Docker environment..."
         cd docker 2>/dev/null || true
-        docker-compose down -v 2>/dev/null || true
+        
+        # Try both Docker Compose versions
+        if command -v docker-compose &> /dev/null; then
+            docker-compose down -v 2>/dev/null || true
+        elif docker compose version &> /dev/null; then
+            docker compose down -v 2>/dev/null || true
+        fi
+        
         docker rmi dpm-environment 2>/dev/null || true
         cd .. 2>/dev/null || true
         rm -f dpm-docker-*.sh

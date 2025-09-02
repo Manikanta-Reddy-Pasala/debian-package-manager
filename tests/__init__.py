@@ -1,1 +1,1 @@
-"""Test package for Debian Metapackage Manager."""
+"""Test suite for Debian Package Manager."""

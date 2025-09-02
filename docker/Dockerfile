@@ -35,10 +35,10 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /workspace
 
 # Copy Docker setup files
-COPY scripts/ /docker-setup/scripts/
-COPY config/ /docker-setup/config/
-COPY packages/ /docker-setup/packages/
-COPY bashrc-additions /docker-setup/bashrc-additions
+COPY docker/scripts/ /docker-setup/scripts/
+COPY docker/config/ /docker-setup/config/
+COPY docker/packages/ /docker-setup/packages/
+COPY docker/bashrc-additions /docker-setup/bashrc-additions
 
 # Make scripts executable
 RUN chmod +x /docker-setup/scripts/*.sh
@@ -47,7 +47,7 @@ RUN chmod +x /docker-setup/scripts/*.sh
 RUN /docker-setup/scripts/build-examples.sh
 
 # Copy source code (this will be overridden by volume mount in docker-compose)
-COPY .. /workspace/
+COPY . /workspace/
 
 # Run setup script
 RUN /docker-setup/scripts/setup-dpm.sh

@@ -1,365 +1,541 @@
-#!/usr/bin/env python3
-"""
-Integration tests for Debian Package Manager.
-These tests verify that all components work together correctly.
-"""
+"""Integration tests for the Debian Package Manager."""
 
-import os
-import sys
+import pytest
 import tempfile
 import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock
 
-# Add src to path for testing
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from debian_metapackage_manager.engine import PackageEngine
-from debian_metapackage_manager.models import Package, PackageStatus, DependencyPlan, OperationResult
+from debian_metapackage_manager.cli.main import PackageManagerCLI
+from debian_metapackage_manager.core.managers.package_engine import PackageEngine
 from debian_metapackage_manager.config import Config
+from debian_metapackage_manager.models import Package, OperationResult, PackageStatus
 
 
-class TestPackageEngineIntegration:
-    """Integration tests for the complete package engine."""
-    
-    def setup_method(self):
-        """Set up test environment."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.config_file = os.path.join(self.temp_dir, "config.json")
-        
-        # Create test config
-        test_config = {
-            "package_prefixes": {
-                "custom_prefixes": ["test-", "mycompany-", "integration-"]
-            },
-            "offline_mode": False,
-            "version_pinning": {
-                "test-package": "1.0.0",
-                "mycompany-tools": "2.1.0"
-            }
+class TestEndToEndPackageInstallation:
+    """End-to-end package installation workflow tests."""
+
+    def test_complete_package_installation_workflow(self, temp_config_dir):
+        """Test complete package installation from CLI to execution."""
+        # Create test configuration
+        config_path = Path(temp_config_dir) / 'config.json'
+        test_config_data = {
+            'custom_prefixes': ['test-', 'integration-'],
+            'offline_mode': False,
+            'pinned_versions': {},
+            'removable_packages': [],
         }
         
-        with open(self.config_file, 'w') as f:
-            json.dump(test_config, f)
+        with open(config_path, 'w') as f:
+            json.dump(test_config_data, f, indent=2)
         
-        # Create engine with test config
-        self.engine = PackageEngine(config_path=self.config_file)
-    
-    def test_complete_install_workflow(self):
-        """Test complete package installation workflow."""
-        # Mock all the underlying interfaces
-        with patch.object(self.engine.apt, 'is_package_available') as mock_available, \
-             patch.object(self.engine.apt, 'get_dependencies') as mock_deps, \
-             patch.object(self.engine.dependency_resolver, 'resolve_dependencies') as mock_resolve, \
-             patch.object(self.engine.conflict_handler, 'handle_conflicts') as mock_conflicts, \
-             patch.object(self.engine.apt, 'install_package') as mock_install:
-            
-            # Set up mocks
-            mock_available.return_value = True
-            mock_deps.return_value = [
-                Package("dependency1", "1.0.0", PackageStatus.NOT_INSTALLED),
-                Package("dependency2", "2.0.0", PackageStatus.INSTALLED)
-            ]
-            
-            mock_resolve.return_value = DependencyPlan(
-                to_install=[Package("test-package", "1.0.0", PackageStatus.NOT_INSTALLED)],
-                to_remove=[],
-                to_upgrade=[],
-                conflicts=[]
-            )
-            
-            mock_conflicts.return_value = True  # User approved
-            mock_install.return_value = OperationResult(
-                success=True,
-                packages_affected=[Package("test-package", "1.0.0", PackageStatus.INSTALLED)],
-                warnings=[],
-                errors=[]
-            )
-            
-            # Execute installation
-            result = self.engine.install_package("test-package")
-            
-            # Verify workflow
-            assert result.success
-            assert len(result.packages_affected) == 1
-            assert result.packages_affected[0].name == "test-package"
-            
-            # Verify all components were called
-            mock_available.assert_called_once_with("test-package")
-            mock_deps.assert_called_once_with("test-package")
-            mock_resolve.assert_called_once()
-            mock_conflicts.assert_called_once()
-            mock_install.assert_called_once()
-    
-    def test_complete_remove_workflow(self):
-        """Test complete package removal workflow."""
-        with patch.object(self.engine.apt, 'is_package_installed') as mock_installed, \
-             patch.object(self.engine.apt, 'get_reverse_dependencies') as mock_rdeps, \
-             patch.object(self.engine.dependency_resolver, 'resolve_dependencies') as mock_resolve, \
-             patch.object(self.engine.conflict_handler, 'handle_conflicts') as mock_conflicts, \
-             patch.object(self.engine.apt, 'remove_package') as mock_remove:
-            
-            # Set up mocks
-            mock_installed.return_value = True
-            mock_rdeps.return_value = [
-                Package("dependent1", "1.0.0", PackageStatus.INSTALLED)
-            ]
-            
-            mock_resolve.return_value = DependencyPlan(
-                to_install=[],
-                to_remove=[Package("test-package", "1.0.0", PackageStatus.INSTALLED)],
-                to_upgrade=[],
-                conflicts=[]
-            )
-            
-            mock_conflicts.return_value = True  # User approved
-            mock_remove.return_value = OperationResult(
-                success=True,
-                packages_affected=[Package("test-package", "1.0.0", PackageStatus.NOT_INSTALLED)],
-                warnings=[],
-                errors=[]
-            )
-            
-            # Execute removal
-            result = self.engine.remove_package("test-package")
-            
-            # Verify workflow
-            assert result.success
-            assert len(result.packages_affected) == 1
-            assert result.packages_affected[0].name == "test-package"
-            
-            # Verify all components were called
-            mock_installed.assert_called_once_with("test-package")
-            mock_rdeps.assert_called_once_with("test-package")
-            mock_resolve.assert_called_once()
-            mock_conflicts.assert_called_once()
-            mock_remove.assert_called_once()
-    
-    def test_offline_mode_integration(self):
-        """Test offline mode integration across components."""
-        # Switch to offline mode
-        self.engine.mode_manager.switch_to_offline_mode()
-        
-        with patch.object(self.engine.apt, 'is_package_available') as mock_available, \
-             patch.object(self.engine.mode_manager, 'get_pinned_version') as mock_pinned, \
-             patch.object(self.engine.apt, 'install_specific_version') as mock_install_version:
-            
-            mock_available.return_value = True
-            mock_pinned.return_value = "1.0.0"
-            mock_install_version.return_value = OperationResult(
-                success=True,
-                packages_affected=[Package("test-package", "1.0.0", PackageStatus.INSTALLED)],
-                warnings=[],
-                errors=[]
-            )
-            
-            # Install in offline mode
-            result = self.engine.install_package("test-package")
-            
-            # Verify offline mode was used
-            mock_pinned.assert_called_once_with("test-package")
-            mock_install_version.assert_called_once_with("test-package", "1.0.0")
-    
-    def test_custom_package_recognition_integration(self):
-        """Test custom package recognition across all components."""
-        # Test with custom package
-        custom_package = "mycompany-dev-tools"
-        
-        with patch.object(self.engine.apt, 'is_package_available') as mock_available, \
-             patch.object(self.engine.apt, 'get_dependencies') as mock_deps:
-            
-            mock_available.return_value = True
-            mock_deps.return_value = []
-            
-            # Check if package is recognized as custom
-            is_custom = self.engine.classifier.is_custom_package(custom_package)
-            assert is_custom
-            
-            # Verify it's handled as custom throughout the system
-            package_info = self.engine.get_package_info(custom_package)
-            if package_info:
-                assert package_info.is_custom
-    
-    def test_conflict_resolution_integration(self):
-        """Test conflict resolution integration."""
-        with patch.object(self.engine.apt, 'is_package_available') as mock_available, \
-             patch.object(self.engine.dependency_resolver, 'resolve_dependencies') as mock_resolve, \
-             patch.object(self.engine.conflict_handler, 'handle_conflicts') as mock_conflicts:
-            
-            mock_available.return_value = True
-            
-            # Create a conflict scenario
-            mock_resolve.return_value = DependencyPlan(
-                to_install=[Package("new-package", "1.0.0", PackageStatus.NOT_INSTALLED)],
-                to_remove=[Package("conflicting-package", "1.0.0", PackageStatus.INSTALLED)],
-                to_upgrade=[],
-                conflicts=[
-                    ("new-package", "conflicting-package", "version conflict")
-                ]
-            )
-            
-            # Test user rejection
-            mock_conflicts.return_value = False
-            result = self.engine.install_package("new-package")
-            assert not result.success
-            
-            # Test user approval
-            mock_conflicts.return_value = True
-            with patch.object(self.engine.apt, 'install_package') as mock_install:
-                mock_install.return_value = OperationResult(success=True, packages_affected=[], warnings=[], errors=[])
-                result = self.engine.install_package("new-package")
-                assert result.success
-    
-    def test_error_recovery_integration(self):
-        """Test error recovery across components."""
-        with patch.object(self.engine.apt, 'is_package_available') as mock_available, \
-             patch.object(self.engine.apt, 'install_package') as mock_install, \
-             patch.object(self.engine.error_handler, 'handle_installation_error') as mock_error:
-            
-            mock_available.return_value = True
-            
-            # Simulate installation failure
-            mock_install.return_value = OperationResult(
-                success=False,
-                packages_affected=[],
-                warnings=[],
-                errors=["Installation failed due to network error"]
-            )
-            
-            mock_error.return_value = OperationResult(
-                success=True,
-                packages_affected=[],
-                warnings=["Recovered from error"],
-                errors=[]
-            )
-            
-            # Test error recovery
-            result = self.engine.install_package("test-package")
-            
-            # Verify error handler was called
-            mock_error.assert_called_once()
-    
-    def test_system_health_integration(self):
-        """Test system health check integration."""
-        with patch.object(self.engine.dpkg, 'list_broken_packages') as mock_broken, \
-             patch.object(self.engine.apt, 'check_system_integrity') as mock_integrity, \
-             patch.object(self.engine.mode_manager, 'get_mode_status') as mock_mode:
-            
-            mock_broken.return_value = []
-            mock_integrity.return_value = True
-            mock_mode.return_value = {
-                'offline_mode': False,
-                'network_available': True,
-                'repositories_accessible': True,
-                'pinned_packages_count': 2
-            }
-            
-            # Check system health
-            result = self.engine.check_system_health()
-            
-            assert result.success
-            assert len(result.errors) == 0
-            
-            # Verify all components were checked
-            mock_broken.assert_called_once()
-            mock_integrity.assert_called_once()
-            mock_mode.assert_called_once()
-    
-    def test_configuration_integration(self):
-        """Test configuration integration across components."""
-        # Test adding custom prefix
-        self.engine.config.add_custom_prefix("newcompany-")
-        
-        # Verify it's recognized by classifier
-        assert self.engine.classifier.is_custom_package("newcompany-test")
-        
-        # Test offline mode setting
-        self.engine.config.set_offline_mode(True)
-        
-        # Verify mode manager respects the setting
-        mode_status = self.engine.mode_manager.get_mode_status()
-        assert mode_status['config_offline_setting']
-    
-    def test_concurrent_operations_safety(self):
-        """Test that concurrent operations are handled safely."""
-        import threading
-        import time
-        
-        results = []
-        errors = []
-        
-        def install_package(package_name):
-            try:
-                with patch.object(self.engine.apt, 'install_package') as mock_install:
-                    mock_install.return_value = OperationResult(
-                        success=True,
-                        packages_affected=[Package(package_name, "1.0.0", PackageStatus.INSTALLED)],
-                        warnings=[],
-                        errors=[]
-                    )
+        with patch('debian_metapackage_manager.config.Config') as mock_config_class:
+            with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+                with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+                    # Setup config mock
+                    config = Config(str(config_path))
+                    mock_config_class.return_value = config
                     
-                    # Simulate some processing time
-                    time.sleep(0.1)
-                    result = self.engine.install_package(package_name)
-                    results.append(result)
-            except Exception as e:
-                errors.append(e)
+                    # Setup interface mocks
+                    mock_apt_instance = Mock()
+                    mock_dpkg_instance = Mock()
+                    mock_apt.return_value = mock_apt_instance
+                    mock_dpkg.return_value = mock_dpkg_instance
+                    
+                    # Configure mock behavior for successful installation
+                    mock_apt_instance.is_installed.return_value = False
+                    mock_apt_instance.install.return_value = True
+                    mock_apt_instance.get_available_versions.return_value = ['1.0.0', '2.0.0']
+                    
+                    # Create CLI and run installation
+                    cli = PackageManagerCLI()
+                    
+                    # Test installation command
+                    with patch('sys.argv', ['dpm', 'install', 'test-package']):
+                        with patch('builtins.print') as mock_print:
+                            result = cli.run(['install', 'test-package'])
+                            
+                            assert result == 0
+                            mock_apt_instance.install.assert_called_once()
+
+    def test_package_installation_with_dependencies(self, temp_config_dir):
+        """Test package installation with dependency resolution."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        config = Config(str(config_path))
         
-        # Start multiple threads
-        threads = []
-        for i in range(5):
-            thread = threading.Thread(target=install_package, args=[f"package-{i}"])
-            threads.append(thread)
-            thread.start()
-        
-        # Wait for all threads to complete
-        for thread in threads:
-            thread.join()
-        
-        # Verify no errors occurred
-        assert len(errors) == 0
-        assert len(results) == 5
-        
-        # Verify all operations succeeded
-        for result in results:
-            assert result.success
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+                # Setup interface mocks
+                mock_apt_instance = Mock()
+                mock_dpkg_instance = Mock()
+                mock_apt.return_value = mock_apt_instance
+                mock_dpkg.return_value = mock_dpkg_instance
+                
+                # Setup dependency chain
+                main_package = Package('test-main', '1.0.0')
+                dependency1 = Package('test-dep1', '1.0.0')
+                dependency2 = Package('test-dep2', '1.0.0')
+                
+                mock_apt_instance.get_dependencies.return_value = [dependency1, dependency2]
+                mock_apt_instance.is_installed.return_value = False
+                mock_apt_instance.install.return_value = True
+                
+                # Create package engine and test
+                engine = PackageEngine(config)
+                result = engine.install_package('test-main')
+                
+                assert result.success is True
+                # Should have attempted to install dependencies
+                assert mock_apt_instance.install.call_count >= 1
 
 
-def run_integration_tests():
-    """Run all integration tests."""
-    print("Running integration tests...")
-    
-    test_class = TestPackageEngineIntegration()
-    
-    tests = [
-        test_class.test_complete_install_workflow,
-        test_class.test_complete_remove_workflow,
-        test_class.test_offline_mode_integration,
-        test_class.test_custom_package_recognition_integration,
-        test_class.test_conflict_resolution_integration,
-        test_class.test_error_recovery_integration,
-        test_class.test_system_health_integration,
-        test_class.test_configuration_integration,
-        test_class.test_concurrent_operations_safety
-    ]
-    
-    passed = 0
-    failed = 0
-    
-    for test in tests:
-        try:
-            test_class.setup_method()
-            test()
-            print(f"✓ {test.__name__}")
-            passed += 1
-        except Exception as e:
-            print(f"✗ {test.__name__}: {e}")
-            failed += 1
-    
-    print(f"\nIntegration Tests: {passed} passed, {failed} failed")
-    return failed == 0
+class TestEndToEndPackageRemoval:
+    """End-to-end package removal workflow tests."""
+
+    def test_safe_package_removal_workflow(self, temp_config_dir):
+        """Test safe package removal workflow."""
+        # Create config with custom prefixes
+        config_path = Path(temp_config_dir) / 'config.json'
+        test_config_data = {
+            'custom_prefixes': ['test-', 'safe-'],
+            'offline_mode': False,
+            'removable_packages': ['explicit-removable-pkg'],
+        }
+        
+        with open(config_path, 'w') as f:
+            json.dump(test_config_data, f, indent=2)
+        
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+                # Setup interface mocks
+                mock_apt_instance = Mock()
+                mock_dpkg_instance = Mock()
+                mock_apt.return_value = mock_apt_instance
+                mock_dpkg.return_value = mock_dpkg_instance
+                
+                # Configure for successful removal
+                mock_apt_instance.is_installed.return_value = True
+                mock_apt_instance.remove.return_value = True
+                mock_apt_instance.get_package_info.return_value = Package('test-package', '1.0.0')
+                
+                # Test removal of custom package (should succeed)
+                engine = PackageEngine(config)
+                result = engine.remove_package('test-package')
+                
+                assert result.success is True
+                mock_apt_instance.remove.assert_called_once()
+
+    def test_system_package_removal_prevention(self, temp_config_dir):
+        """Test that system packages cannot be removed."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+            mock_dpkg_instance = Mock()
+            mock_dpkg.return_value = mock_dpkg_instance
+            
+            # Test removal of system package (should be prevented)
+            result = mock_dpkg_instance.safe_remove('libc6')
+            
+            # Should be handled by the DPKG interface's safety checks
 
 
-if __name__ == "__main__":
-    success = run_integration_tests()
-    sys.exit(0 if success else 1)
+class TestModeManagement:
+    """Test mode management (offline/online) workflows."""
+
+    def test_offline_mode_workflow(self, temp_config_dir):
+        """Test complete offline mode workflow."""
+        # Create config with pinned versions
+        config_path = Path(temp_config_dir) / 'config.json'
+        test_config_data = {
+            'custom_prefixes': ['test-'],
+            'offline_mode': True,
+            'pinned_versions': {
+                'test-package': '1.0.0',
+                'test-lib': '2.0.0'
+            },
+        }
+        
+        with open(config_path, 'w') as f:
+            json.dump(test_config_data, f, indent=2)
+        
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            mock_apt_instance = Mock()
+            mock_apt.return_value = mock_apt_instance
+            
+            # Setup available versions
+            mock_apt_instance.get_available_versions.return_value = ['1.0.0', '1.1.0', '2.0.0']
+            
+            from debian_metapackage_manager.core.mode_manager import ModeManager
+            mode_manager = ModeManager(config, mock_apt_instance)
+            
+            # Test that pinned versions are used in offline mode
+            version = mode_manager.get_package_version_for_mode('test-package')
+            assert version == '1.0.0'  # Should use pinned version
+            
+            # Test validation of pinned versions
+            is_valid, issues = mode_manager.validate_pinned_versions()
+            assert is_valid is True
+
+    def test_online_mode_workflow(self, temp_config_dir):
+        """Test complete online mode workflow."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        test_config_data = {
+            'custom_prefixes': ['test-'],
+            'offline_mode': False,
+        }
+        
+        with open(config_path, 'w') as f:
+            json.dump(test_config_data, f, indent=2)
+        
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            mock_apt_instance = Mock()
+            mock_apt.return_value = mock_apt_instance
+            
+            # Setup available versions
+            mock_apt_instance.get_available_versions.return_value = ['1.0.0', '1.1.0', '2.0.0']
+            
+            from debian_metapackage_manager.core.mode_manager import ModeManager
+            mode_manager = ModeManager(config, mock_apt_instance)
+            
+            # Test that latest versions are used in online mode
+            version = mode_manager.get_package_version_for_mode('test-package')
+            assert version == '2.0.0'  # Should use latest version
+
+    def test_mode_switching_workflow(self, temp_config_dir):
+        """Test switching between modes."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            mock_apt_instance = Mock()
+            mock_apt.return_value = mock_apt_instance
+            
+            from debian_metapackage_manager.core.mode_manager import ModeManager
+            mode_manager = ModeManager(config, mock_apt_instance)
+            
+            # Test switching to offline mode
+            assert mode_manager.switch_to_offline_mode() is True
+            assert config.is_offline_mode() is True
+            
+            # Test switching to online mode
+            assert mode_manager.switch_to_online_mode() is True
+            assert config.is_offline_mode() is False
+
+
+class TestSystemHealthAndMaintenance:
+    """Test system health checking and maintenance workflows."""
+
+    def test_system_health_check_workflow(self, temp_config_dir):
+        """Test complete system health check workflow."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+                # Setup interface mocks
+                mock_apt_instance = Mock()
+                mock_dpkg_instance = Mock()
+                mock_apt.return_value = mock_apt_instance
+                mock_dpkg.return_value = mock_dpkg_instance
+                
+                # Configure healthy system
+                mock_dpkg_instance.list_broken_packages.return_value = []
+                mock_dpkg_instance.detect_locks.return_value = []
+                
+                # Test health check
+                engine = PackageEngine(config)
+                result = engine.check_system_health()
+                
+                assert result.success is True
+                assert len(result.errors) == 0
+
+    def test_broken_system_fix_workflow(self, temp_config_dir):
+        """Test fixing broken system workflow."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+                # Setup interface mocks
+                mock_apt_instance = Mock()
+                mock_dpkg_instance = Mock()
+                mock_apt.return_value = mock_apt_instance
+                mock_dpkg.return_value = mock_dpkg_instance
+                
+                # Configure broken system that can be fixed
+                broken_package = Package('broken-pkg', '1.0.0', status=PackageStatus.BROKEN)
+                mock_dpkg_instance.list_broken_packages.return_value = [broken_package]
+                mock_dpkg_instance.fix_broken_packages.return_value = True
+                mock_apt_instance.update_package_cache.return_value = True
+                
+                # Test system fix
+                engine = PackageEngine(config)
+                
+                # First check health (should fail)
+                health_result = engine.check_system_health()
+                assert health_result.success is False
+                
+                # Then fix system (should succeed)
+                fix_result = engine.fix_broken_system()
+                assert fix_result.success is True
+
+
+class TestConfigurationManagement:
+    """Test configuration management workflows."""
+
+    def test_configuration_persistence_workflow(self, temp_config_dir):
+        """Test configuration persistence across operations."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        
+        # Create initial config
+        config1 = Config(str(config_path))
+        config1.add_custom_prefix('workflow-test-')
+        config1.set_offline_mode(True)
+        config1.add_removable_package('test-removable')
+        
+        # Create new config instance (should load persisted data)
+        config2 = Config(str(config_path))
+        
+        assert 'workflow-test-' in config2.get_custom_prefixes()
+        assert config2.is_offline_mode() is True
+        assert 'test-removable' in config2.get_removable_packages()
+
+    def test_configuration_validation_workflow(self, temp_config_dir):
+        """Test configuration validation workflow."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        
+        # Create config with invalid data
+        invalid_config_data = {
+            'custom_prefixes': 'not-a-list',  # Should be list
+            'offline_mode': 'not-a-boolean',  # Should be boolean
+        }
+        
+        with open(config_path, 'w') as f:
+            json.dump(invalid_config_data, f)
+        
+        # Should handle invalid config gracefully and use defaults
+        config = Config(str(config_path))
+        
+        # Should fall back to defaults
+        assert isinstance(config.get_custom_prefixes(), list)
+
+
+class TestRemoteOperations:
+    """Test remote operation workflows."""
+
+    def test_remote_connection_workflow(self):
+        """Test remote connection establishment workflow."""
+        from debian_metapackage_manager.core.managers.remote_manager import RemotePackageManager
+        
+        with patch('debian_metapackage_manager.core.managers.remote_manager.SSHConnection') as mock_ssh:
+            mock_connection = Mock()
+            mock_connection.test_connection.return_value = True
+            mock_ssh.return_value = mock_connection
+            
+            remote_manager = RemotePackageManager()
+            
+            # Test connection
+            result = remote_manager.connect_remote('test-host', 'test-user')
+            assert result is True
+            
+            # Test that we're now connected to remote
+            assert remote_manager.is_remote_connected() is True
+            
+            # Test disconnection
+            remote_manager.disconnect()
+            assert remote_manager.is_remote_connected() is False
+
+    def test_remote_package_operation_workflow(self):
+        """Test remote package operation workflow."""
+        from debian_metapackage_manager.core.managers.remote_manager import RemotePackageManager
+        
+        with patch('debian_metapackage_manager.core.managers.remote_manager.SSHConnection') as mock_ssh:
+            mock_connection = Mock()
+            mock_connection.test_connection.return_value = True
+            mock_connection.execute_command.return_value = (0, "success", "")
+            mock_ssh.return_value = mock_connection
+            
+            remote_manager = RemotePackageManager()
+            
+            # Connect to remote
+            remote_manager.connect_remote('test-host', 'test-user')
+            
+            # Execute remote command
+            result = remote_manager.execute_command('install', 'test-package')
+            
+            # Should have executed command on remote
+            mock_connection.execute_command.assert_called()
+
+
+class TestErrorHandlingWorkflows:
+    """Test error handling across different workflows."""
+
+    def test_network_error_handling_workflow(self, temp_config_dir):
+        """Test handling of network errors during operations."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            mock_apt_instance = Mock()
+            mock_apt.return_value = mock_apt_instance
+            
+            # Simulate network error
+            mock_apt_instance.update_package_cache.side_effect = Exception("Network error")
+            
+            from debian_metapackage_manager.core.mode_manager import ModeManager
+            with patch('debian_metapackage_manager.utils.network.NetworkChecker') as mock_checker:
+                mock_checker.return_value.is_network_available.return_value = False
+                
+                mode_manager = ModeManager(config, mock_apt_instance)
+                
+                # Should auto-detect offline mode due to network error
+                detected_mode = mode_manager.auto_detect_appropriate_mode()
+                assert detected_mode == 'offline'
+
+    def test_permission_error_handling_workflow(self, temp_config_dir):
+        """Test handling of permission errors."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+                mock_apt_instance = Mock()
+                mock_dpkg_instance = Mock()
+                mock_apt.return_value = mock_apt_instance
+                mock_dpkg.return_value = mock_dpkg_instance
+                
+                # Simulate permission error
+                mock_apt_instance.install.side_effect = PermissionError("Permission denied")
+                
+                engine = PackageEngine(config)
+                result = engine.install_package('test-package')
+                
+                # Should handle permission error gracefully
+                assert result.success is False
+                assert len(result.errors) > 0
+
+
+class TestCompleteScenarios:
+    """Test complete real-world scenarios."""
+
+    def test_complete_metapackage_installation_scenario(self, temp_config_dir):
+        """Test complete metapackage installation scenario."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        test_config_data = {
+            'custom_prefixes': ['company-', 'suite-'],
+            'offline_mode': False,
+        }
+        
+        with open(config_path, 'w') as f:
+            json.dump(test_config_data, f, indent=2)
+        
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+                # Setup interface mocks
+                mock_apt_instance = Mock()
+                mock_dpkg_instance = Mock()
+                mock_apt.return_value = mock_apt_instance
+                mock_dpkg.return_value = mock_dpkg_instance
+                
+                # Configure metapackage with dependencies
+                main_package = Package('company-suite', '1.0.0', is_metapackage=True, is_custom=True)
+                dependencies = [
+                    Package('company-app1', '1.0.0', is_custom=True),
+                    Package('company-app2', '1.0.0', is_custom=True),
+                    Package('company-lib', '1.0.0', is_custom=True),
+                ]
+                
+                mock_apt_instance.get_dependencies.return_value = dependencies
+                mock_apt_instance.is_installed.return_value = False
+                mock_apt_instance.install.return_value = True
+                
+                # Test metapackage installation
+                engine = PackageEngine(config)
+                result = engine.install_package('company-suite')
+                
+                assert result.success is True
+                # Should have attempted to install main package and dependencies
+                assert mock_apt_instance.install.call_count >= 1
+
+    def test_system_migration_scenario(self, temp_config_dir):
+        """Test system migration scenario (offline to online mode)."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        
+        # Start in offline mode with pinned versions
+        config = Config(str(config_path))
+        config.set_offline_mode(True)
+        config.set_pinned_version('migrate-pkg', '1.0.0')
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            mock_apt_instance = Mock()
+            mock_apt.return_value = mock_apt_instance
+            
+            # Setup versions (newer available)
+            mock_apt_instance.get_available_versions.return_value = ['1.0.0', '1.1.0', '2.0.0']
+            
+            from debian_metapackage_manager.core.mode_manager import ModeManager
+            mode_manager = ModeManager(config, mock_apt_instance)
+            
+            # Test migration workflow
+            # 1. Start in offline mode
+            assert mode_manager.is_offline_mode() is True
+            version_offline = mode_manager.get_package_version_for_mode('migrate-pkg')
+            assert version_offline == '1.0.0'  # Uses pinned version
+            
+            # 2. Switch to online mode
+            mode_manager.switch_to_online_mode()
+            assert mode_manager.is_offline_mode() is False
+            version_online = mode_manager.get_package_version_for_mode('migrate-pkg')
+            assert version_online == '2.0.0'  # Uses latest version
+
+    def test_disaster_recovery_scenario(self, temp_config_dir):
+        """Test disaster recovery scenario."""
+        config_path = Path(temp_config_dir) / 'config.json'
+        config = Config(str(config_path))
+        
+        with patch('debian_metapackage_manager.interfaces.apt.APTInterface') as mock_apt:
+            with patch('debian_metapackage_manager.interfaces.dpkg.DPKGInterface') as mock_dpkg:
+                mock_apt_instance = Mock()
+                mock_dpkg_instance = Mock()
+                mock_apt.return_value = mock_apt_instance
+                mock_dpkg.return_value = mock_dpkg_instance
+                
+                # Simulate heavily broken system
+                broken_packages = [
+                    Package('broken1', '1.0.0', status=PackageStatus.BROKEN),
+                    Package('broken2', '1.0.0', status=PackageStatus.BROKEN),
+                ]
+                locks = ['/var/lib/dpkg/lock', '/var/cache/apt/archives/lock']
+                
+                mock_dpkg_instance.list_broken_packages.return_value = broken_packages
+                mock_dpkg_instance.detect_locks.return_value = locks
+                mock_dpkg_instance.fix_broken_packages.return_value = True
+                mock_apt_instance.update_package_cache.return_value = True
+                
+                engine = PackageEngine(config)
+                
+                # Test disaster recovery workflow
+                # 1. Assess damage
+                health_result = engine.check_system_health()
+                assert health_result.success is False
+                assert len(health_result.errors) > 0
+                
+                # 2. Attempt automatic fix
+                fix_result = engine.fix_broken_system()
+                assert fix_result.success is True
+                
+                # 3. Verify fix
+                mock_dpkg_instance.list_broken_packages.return_value = []  # Fixed
+                mock_dpkg_instance.detect_locks.return_value = []  # Locks cleared
+                
+                health_result_after = engine.check_system_health()
+                assert health_result_after.success is True

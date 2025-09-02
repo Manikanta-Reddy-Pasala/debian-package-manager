@@ -3,6 +3,3 @@ Version: 1.0.0
 Architecture: all
 Maintainer: DPM Docker Environment
 Description: Example package for DPM testing
- This is an example package created for testing DPM functionality
- in the Docker environment. It demonstrates custom package prefixes
- and provides a simple executable for testing.
