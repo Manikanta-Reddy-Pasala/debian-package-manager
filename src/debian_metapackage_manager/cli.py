@@ -62,7 +62,7 @@ class PackageManagerCLI:
     def _create_parser(self) -> argparse.ArgumentParser:
         """Create the argument parser."""
         parser = argparse.ArgumentParser(
-            description="Debian Metapackage Manager - Intelligent package management for custom metapackage systems",
+            description="Debian Package Manager - Intelligent package management for custom package systems",
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:

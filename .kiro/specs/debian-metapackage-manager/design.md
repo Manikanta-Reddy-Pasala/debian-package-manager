@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Debian Metapackage Manager is a Python CLI tool that provides intelligent package management for custom metapackage hierarchies. The tool uses `apt` and `dpkg` APIs to interact with the Debian package system, implements sophisticated dependency resolution algorithms, and provides a user-friendly interface for managing complex package relationships in both offline and online modes.
+The Debian Package Manager is a Python CLI tool that provides intelligent package management for custom package hierarchies. The tool uses `apt` and `dpkg` APIs to interact with the Debian package system, implements sophisticated dependency resolution algorithms, and provides a user-friendly interface for managing complex package relationships in both offline and online modes.
 
 ## Architecture
 

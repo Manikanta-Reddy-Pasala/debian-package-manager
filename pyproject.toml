@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "debian-metapackage-manager"
+name = "debian-package-manager"
 version = "0.1.0"
-description = "Intelligent package management for custom Debian metapackage systems"
+description = "Intelligent package management for custom Debian package systems"
 authors = [
     {name = "Developer", email = "dev@example.com"},
 ]
@@ -15,9 +15,31 @@ dependencies = [
 requires-python = ">=3.8"
 readme = "README.md"
 license = {text = "MIT"}
+keywords = ["debian", "package", "management", "apt", "dpkg"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Installation/Setup",
+    "Topic :: System :: Systems Administration",
+]
 
 [project.scripts]
 dpm = "debian_metapackage_manager.cli:main"
+debian-package-manager = "debian_metapackage_manager.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/example/debian-package-manager"
+Repository = "https://github.com/example/debian-package-manager"
+Issues = "https://github.com/example/debian-package-manager/issues"
 
 [project.optional-dependencies]
 dev = [
