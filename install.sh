@@ -433,9 +433,27 @@ install_docker() {
     create_wrapper_scripts
     show_docker_usage
     
+    # Fix file permissions if running as root
+    if [[ $EUID -eq 0 ]]; then
+        print_status "Fixing file permissions for non-root user..."
+        # Get the original user who invoked sudo
+        ORIGINAL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo $USER)}"
+        if [[ -n "$ORIGINAL_USER" && "$ORIGINAL_USER" != "root" ]]; then
+            chown "$ORIGINAL_USER:$ORIGINAL_USER" dpm-docker-start.sh dpm-docker-stop.sh 2>/dev/null || true
+            print_status "Changed ownership to $ORIGINAL_USER"
+        fi
+    fi
+    
     # Auto-start the Docker environment
     print_status "Auto-starting DPM Docker environment..."
-    if ./dpm-docker-start.sh --start-only; then
+    
+    # Run the start script as the original user if we're root
+    START_CMD="./dpm-docker-start.sh --start-only"
+    if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+        START_CMD="sudo -u $SUDO_USER $START_CMD"
+    fi
+    
+    if eval "$START_CMD"; then
         print_success "DPM Docker environment started successfully!"
         echo ""
         echo "🎉 Ready to use! Connect to your environment with:"
@@ -443,6 +461,8 @@ install_docker() {
         echo ""
     else
         print_warning "Failed to auto-start Docker environment. You can start it manually with: ./dpm-docker-start.sh"
+        print_status "Note: Make sure your user is in the 'docker' group: sudo usermod -aG docker \$USER"
+        print_status "You may need to log out and back in for group changes to take effect."
     fi
     
     print_success "Docker environment setup completed successfully!"
@@ -472,6 +492,13 @@ case "${1:-}" in
         fi
         ;;
     --docker)
+        # Warn if running Docker setup as root
+        if [[ $EUID -eq 0 ]]; then
+            print_warning "Running Docker setup as root. This may cause permission issues."
+            print_status "Consider running without sudo: ./install.sh --docker"
+            print_status "Make sure your user is in the 'docker' group: sudo usermod -aG docker \$USER"
+            echo ""
+        fi
         install_docker
         ;;
     --help|-h)

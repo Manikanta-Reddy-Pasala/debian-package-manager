@@ -5,7 +5,7 @@ from ..models import Package, PackageStatus
 from ..config import Config
 from ..interfaces.apt import APTInterface
 from ..interfaces.dpkg import DPKGInterface
-from .classifier import PackageClassifier
+from ..core.classifier import PackageClassifier
 import subprocess
 
 

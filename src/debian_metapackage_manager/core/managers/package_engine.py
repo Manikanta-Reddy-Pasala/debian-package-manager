@@ -24,7 +24,7 @@ class PackageEngine:
         self.mode_manager = self.package_manager.mode_manager
         
         # Keep advanced components for complex operations
-        self.dependency_resolver = DependencyResolver(self.apt, self.classifier, self.config)
+        self.dependency_resolver = DependencyResolver(self.config)
         self.conflict_handler = ConflictHandler(self.classifier, self.config)
     
     def install_package(self, name: str, force: bool = False, 
