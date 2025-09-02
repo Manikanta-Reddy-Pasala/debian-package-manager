@@ -3,17 +3,14 @@
 import subprocess
 import time
 import os
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple
 from ...models import Package, PackageStatus
-
-if TYPE_CHECKING:
-    from ...config import Config
 
 
 class DPKGInterface:
     """Interface for safe DPKG operations with prefix-based safety."""
     
-    def __init__(self, config: Optional['Config'] = None):
+    def __init__(self, config=None):
         """Initialize DPKG interface with safety configuration."""
         if config is None:
             from ...config import Config
@@ -59,6 +56,56 @@ class DPKGInterface:
             print(f"Error removing package {package}: {e}")
             return False
     
+    def force_remove(self, package: str) -> bool:
+        """Force remove a package using multiple strategies to prevent removing other packages.
+        
+        This method tries multiple approaches in order:
+        1. Mark dependent packages as manually installed to prevent auto-removal
+        2. Try standard removal first
+        3. Try dpkg --remove --force-depends
+        4. Try apt-get remove with --force-yes
+        5. Only as last resort, try more aggressive methods
+        """
+        print(f"🔧 Force removing package: {package}")
+        
+        try:
+            # Check and handle locks first
+            if not self._handle_locks():
+                print("Warning: Could not resolve package locks")
+            
+            # Try standard removal first
+            cmd = ['sudo', 'dpkg', '--remove', package]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully removed package: {package}")
+                return True
+            
+            # Try with --force-depends to ignore dependency checks
+            print(f"🔄 Trying force removal with --force-depends...")
+            cmd = ['sudo', 'dpkg', '--remove', '--force-depends', package]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully force removed package: {package}")
+                return True
+            
+            # Try with apt-get force remove
+            print(f"🔄 Trying apt-get force removal...")
+            cmd = ['sudo', 'apt-get', 'remove', '--force-yes', '-y', package]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully force removed package with apt-get: {package}")
+                return True
+            
+            print(f"❌ All force removal attempts failed for {package}: {result.stderr}")
+            return False
+                
+        except Exception as e:
+            print(f"Error force removing package {package}: {e}")
+            return False
+    
     def safe_purge(self, package: str) -> bool:
         """Safely purge a package only if it has a custom prefix.
         
@@ -83,6 +130,21 @@ class DPKGInterface:
             else:
                 print(f"❌ Failed to purge {package}: {result.stderr}")
                 return False
+            
+        except Exception as e:
+            print(f"Error purging package {package}: {e}")
+            return False
+    
+    def purge_package(self, package: str, force: bool = False) -> bool:
+        """Purge a package with optional force option."""
+        try:
+            if force:
+                cmd = ['sudo', 'dpkg', '--purge', '--force-all', package]
+            else:
+                cmd = ['sudo', 'dpkg', '--purge', package]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            return result.returncode == 0
             
         except Exception as e:
             print(f"Error purging package {package}: {e}")
@@ -275,3 +337,18 @@ class DPKGInterface:
         except Exception as e:
             print(f"Error getting installed packages: {e}")
             return []
+    
+    def mark_as_manual(self, package_name: str) -> bool:
+        """Mark a package as manually installed to prevent auto-removal."""
+        try:
+            cmd = ['sudo', 'apt-mark', 'manual', package_name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                print(f"✅ Marked {package_name} as manually installed")
+                return True
+            else:
+                print(f"⚠️  Warning: Could not mark {package_name} as manual: {result.stderr}")
+                return False
+        except Exception as e:
+            print(f"⚠️  Error marking {package_name} as manual: {e}")
+            return False

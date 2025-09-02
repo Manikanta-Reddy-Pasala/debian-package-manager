@@ -1,14 +1,15 @@
-"""Core package management functionality."""
+"""Core package management operations."""
 
 from typing import List, Optional
-from ..models import Package, OperationResult, PackageStatus
-from ..config import Config
 from ..interfaces.apt import APTInterface
 from ..interfaces.dpkg import DPKGInterface
-from .classifier import PackageClassifier
-from .mode_manager import ModeManager
-from ..utils.table_formatter import TableFormatter
+from ..classifier import PackageClassifier
+from ..mode_manager import ModeManager
+from ..models import Package, OperationResult, PackageStatus
+from ..config import Config
 from ..utils.force_analyzer import ForceOperationAnalyzer
+from ..utils.table_formatter import TableFormatter
+import subprocess
 
 
 class PackageManager:
@@ -90,7 +91,8 @@ class PackageManager:
         print(f"Upgrading {package.name} from v{current_version} to v{target_version}")
         return self._perform_version_change(package, current_version, target_version, force)
     
-    def _perform_new_installation(self, package: Package, version: Optional[str], force: bool) -> OperationResult:
+    def _perform_new_installation(self, package: Package, version: Optional[str], 
+                                 force: bool) -> OperationResult:
         """Perform installation of a new package."""
         try:
             # Use --no-remove flag to prevent removing other packages
@@ -304,8 +306,6 @@ class PackageManager:
     def _safe_install_with_force_flags(self, package_name: str, version: Optional[str]) -> bool:
         """Install package with force flags to override conflicts."""
         try:
-            import subprocess
-            
             if version:
                 package_spec = f"{package_name}={version}"
             else:
@@ -337,8 +337,6 @@ class PackageManager:
     def _safe_install_with_no_remove(self, package_name: str, version: Optional[str]) -> bool:
         """Install package with --no-remove flag to prevent removing other packages."""
         try:
-            import subprocess
-            
             if version:
                 package_spec = f"{package_name}={version}"
             else:
@@ -362,8 +360,6 @@ class PackageManager:
     def _safe_upgrade_package(self, package_name: str) -> bool:
         """Upgrade package using --only-upgrade flag."""
         try:
-            import subprocess
-            
             # Use apt-get with --only-upgrade to only upgrade existing packages
             cmd = ['sudo', 'apt-get', 'install', '-y', '--only-upgrade', package_name]
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -382,14 +378,133 @@ class PackageManager:
     def _is_package_upgradable(self, package_name: str) -> bool:
         """Check if package has available upgrades."""
         try:
-            import subprocess
-            
             cmd = ['apt', 'list', '--upgradable', package_name]
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             return package_name in result.stdout and 'upgradable' in result.stdout
             
         except Exception:
+            return False
+    
+    def _force_install_package(self, package: Package) -> OperationResult:
+        """Force install a package using intelligent methods with protection strategies."""
+        print(f"🔧 Force installing package: {package.name}")
+        
+        try:
+            # First, analyze the impact of force installation
+            impact_analysis = self.force_analyzer.analyze_force_install_impact(
+                package.name, package.version
+            )
+            
+            # Apply protection strategy before proceeding
+            if impact_analysis['protection_strategy']:
+                print("🛡️  Applying protection strategy...")
+                self.force_analyzer.apply_protection_strategy(impact_analysis['protection_strategy'])
+            
+            # Try safe installation methods first
+            success = self._safe_install_with_no_remove(package.name, package.version)
+            
+            if success:
+                return OperationResult(
+                    success=True,
+                    packages_affected=[package],
+                    warnings=["Package installed with protection strategies applied"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+            
+            # If that fails, try force installation with various methods
+            success = self._safe_install_with_force_flags(package.name, package.version)
+            
+            if success:
+                return OperationResult(
+                    success=True,
+                    packages_affected=[package],
+                    warnings=["Package force installed with flags"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+            
+            # Show confirmation if there are significant impacts
+            if impact_analysis['requires_confirmation']:
+                print("⚠️  Significant impact detected during force installation.")
+                if not self._show_force_install_confirmation(impact_analysis):
+                    return OperationResult(
+                        success=False,
+                        packages_affected=[],
+                        warnings=[],
+                        errors=["User cancelled force installation"],
+                        user_confirmations_required=[]
+                    )
+            
+            # Try various force installation methods as last resort
+            success = self._try_force_install_methods(package.name, package.version)
+            
+            if success:
+                return OperationResult(
+                    success=True,
+                    packages_affected=[package],
+                    warnings=["Package installed with force methods as last resort"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    packages_affected=[],
+                    warnings=[],
+                    errors=[f"Force installation failed for {package.name}"],
+                    user_confirmations_required=[]
+                )
+                
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                packages_affected=[],
+                warnings=[],
+                errors=[f"Force installation error: {str(e)}"],
+                user_confirmations_required=[]
+            )
+    
+    def _try_force_install_methods(self, package_name: str, version: Optional[str]) -> bool:
+        """Try various force installation methods."""
+        try:
+            # Method 1: Fix broken packages first
+            print("🔧 Fixing broken packages...")
+            self.dpkg.fix_broken_packages()
+            
+            # Method 2: Try with --force-yes
+            print("🔄 Trying force installation with --force-yes...")
+            if version:
+                package_spec = f"{package_name}={version}"
+            else:
+                package_spec = package_name
+            
+            cmd = ['sudo', 'apt-get', 'install', '-y', '--force-yes', package_spec]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully force installed: {package_spec}")
+                return True
+            
+            # Method 3: Try with --allow-downgrades
+            print("🔄 Trying force installation with --allow-downgrades...")
+            cmd = ['sudo', 'apt-get', 'install', '-y', '--allow-downgrades', package_spec]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully force installed with downgrades: {package_spec}")
+                return True
+            
+            # Method 4: Try dpkg direct installation if it's a .deb file
+            if package_name.endswith('.deb'):
+                print("🔄 Trying direct .deb installation...")
+                return self.dpkg.force_install_deb(package_name)
+            
+            return False
+            
+        except Exception as e:
+            print(f"Error in force installation methods: {e}")
             return False
     
     def remove_package(self, name: str, force: bool = False) -> OperationResult:
@@ -454,6 +569,114 @@ class PackageManager:
                 errors=[error_msg],
                 user_confirmations_required=[]
             )
+    
+    def _force_remove_package(self, package: Package) -> OperationResult:
+        """Force remove a package using intelligent methods with protection strategies."""
+        print(f"🔧 Force removing package: {package.name}")
+        
+        try:
+            # First, analyze the impact of force removal
+            impact_analysis = self.force_analyzer.analyze_force_remove_impact(package.name)
+            
+            # Apply protection strategy before proceeding
+            if impact_analysis['protection_strategy']:
+                print("🛡️  Applying protection strategy...")
+                self.force_analyzer.apply_protection_strategy(impact_analysis['protection_strategy'])
+            
+            # Try safe removal first
+            success = self.dpkg.safe_remove(package.name)
+            
+            if success:
+                return OperationResult(
+                    success=True,
+                    packages_affected=[package],
+                    warnings=["Package removed with protection strategies applied"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+            
+            # Show confirmation if there are significant impacts
+            if impact_analysis['requires_confirmation']:
+                print("⚠️  Significant impact detected during force removal.")
+                if not self._show_force_remove_confirmation(impact_analysis):
+                    return OperationResult(
+                        success=False,
+                        packages_affected=[],
+                        warnings=[],
+                        errors=["User cancelled force removal"],
+                        user_confirmations_required=[]
+                    )
+            
+            # Try various force removal methods as last resort
+            success = self._try_force_remove_methods(package.name)
+            
+            if success:
+                return OperationResult(
+                    success=True,
+                    packages_affected=[package],
+                    warnings=["Package removed with force methods as last resort"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    packages_affected=[],
+                    warnings=[],
+                    errors=[f"Force removal failed for {package.name}"],
+                    user_confirmations_required=[]
+                )
+                
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                packages_affected=[],
+                warnings=[],
+                errors=[f"Force removal error: {str(e)}"],
+                user_confirmations_required=[]
+            )
+    
+    def _try_force_remove_methods(self, package_name: str) -> bool:
+        """Try various force removal methods."""
+        try:
+            # Method 1: Fix broken packages first
+            print("🔧 Fixing broken packages...")
+            self.dpkg.fix_broken_packages()
+            
+            # Method 2: Try standard dpkg removal
+            print("🔄 Trying standard dpkg removal...")
+            cmd = ['sudo', 'dpkg', '--remove', package_name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully removed package: {package_name}")
+                return True
+            
+            # Method 3: Try with --force-depends
+            print("🔄 Trying force removal with --force-depends...")
+            cmd = ['sudo', 'dpkg', '--remove', '--force-depends', package_name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully force removed package: {package_name}")
+                return True
+            
+            # Method 4: Try with apt-get force remove
+            print("🔄 Trying apt-get force removal...")
+            cmd = ['sudo', 'apt-get', 'remove', '--force-yes', '-y', package_name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Successfully force removed package with apt-get: {package_name}")
+                return True
+            
+            # Method 5: Try purge as last resort
+            print("🔄 Trying purge as last resort...")
+            return self.dpkg.purge_package(package_name, force=True)
+            
+        except Exception as e:
+            print(f"Error in force removal methods: {e}")
+            return False
     
     def get_package_info(self, name: str) -> Optional[Package]:
         """Get comprehensive package information."""
@@ -521,3 +744,32 @@ class PackageManager:
     def fix_broken_system(self) -> OperationResult:
         """Attempt to fix broken package system."""
         print("Attempting to fix broken package system...")
+        
+        try:
+            success = self.dpkg.fix_broken_packages()
+            
+            if success:
+                return OperationResult(
+                    success=True,
+                    packages_affected=[],
+                    warnings=["Fixed broken package states"],
+                    errors=[],
+                    user_confirmations_required=[]
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    packages_affected=[],
+                    warnings=[],
+                    errors=["Failed to fix broken packages"],
+                    user_confirmations_required=[]
+                )
+                
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                packages_affected=[],
+                warnings=[],
+                errors=[f"Error fixing broken system: {str(e)}"],
+                user_confirmations_required=[]
+            )

@@ -69,59 +69,33 @@ class PackageEngine:
                     user_confirmations_required=[]
                 )
             
-            # Handle conflicts if any
-            if dependency_plan.conflicts or dependency_plan.to_remove:
-                approved, final_plan = self.conflict_handler.handle_conflicts(dependency_plan)
-                if not approved:
-                    return OperationResult(
-                        success=False,
-                        packages_affected=[],
-                        warnings=["Operation cancelled by user"],
-                        errors=[],
-                        user_confirmations_required=[]
-                    )
-                dependency_plan = final_plan
+            # If force is enabled, try to execute the plan even with issues
+            if force and not is_valid:
+                print("⚠️  Continuing with force despite validation issues...")
+                for issue in validation_issues:
+                    print(f"   - {issue}")
             
             # Execute the installation plan
             return self._execute_installation_plan(dependency_plan, force)
             
         except Exception as e:
-            error_msg = f"Error during advanced installation: {str(e)}"
-            print(error_msg)
-            return simple_result  # Return the original simple result
-    
-    def remove_package(self, name: str, force: bool = False) -> OperationResult:
-        """
-        Remove a package with conflict resolution.
-        
-        For simple removals, delegates to PackageManager.
-        For complex removals with high risk, uses conflict handler.
-        """
-        # Check removal risk first
-        risk_level = self.classifier.get_removal_risk_level(name)
-        
-        if risk_level == "HIGH" and not force:
-            # Use conflict handler for high-risk removals
-            package_info = self.apt.get_package_info(name)
-            package = Package(
-                name=name,
-                version=package_info.version if package_info else "",
-                is_metapackage=self.classifier.is_metapackage(name),
-                is_custom=self.classifier.is_custom_package(name),
-                status=PackageStatus.INSTALLED
-            )
-            
-            # Prompt for confirmation of high-risk removal
-            if not self.conflict_handler._prompt_for_removals([package]):
+            # If dependency resolution fails, fall back to force installation
+            if force:
+                print(f"Dependency resolution failed: {e}")
+                print("Falling back to direct force installation...")
+                return self.package_manager.install_package(name, force=True, version=version)
+            else:
                 return OperationResult(
                     success=False,
                     packages_affected=[],
-                    warnings=["High-risk removal cancelled by user"],
-                    errors=[],
+                    warnings=[],
+                    errors=[f"Dependency resolution failed: {str(e)}"],
                     user_confirmations_required=[]
                 )
-        
-        # Delegate to simple package manager
+    
+    def remove_package(self, name: str, force: bool = False) -> OperationResult:
+        """Remove a package with intelligent dependency handling."""
+        # Try simple removal first
         result = self.package_manager.remove_package(name, force)
         
         # If simple removal fails and not forced, ask user about force mode
@@ -142,6 +116,8 @@ class PackageEngine:
             for package in plan.to_remove:
                 print(f"Removing conflicting package: {package.name}")
                 if force:
+                    # Apply protection strategy before force removal
+                    self.dpkg.mark_as_manual(package.name)
                     success = self.dpkg.force_remove(package.name)
                 else:
                     success = self.apt.remove(package.name)
@@ -181,23 +157,12 @@ class PackageEngine:
                             packages_affected.append(package)
                             warnings.append(f"Had to force install {package.name}")
                         else:
-                            errors.append(f"Failed to install {package.name} even with force")
+                            errors.append(f"Failed to force install {package.name}")
                     else:
                         errors.append(f"Failed to install {package.name}")
             
-            # Upgrade packages if needed
-            for package in plan.to_upgrade:
-                print(f"Upgrading: {package.name}")
-                target_version = self.mode_manager.get_package_version_for_mode(package.name)
-                
-                success = self.apt.install(package.name, target_version)
-                if success:
-                    packages_affected.append(package)
-                else:
-                    warnings.append(f"Failed to upgrade {package.name}")
-            
-            # Fix any broken packages
-            if errors and force:
+            # Attempt to fix broken packages if any errors occurred
+            if errors:
                 print("Attempting to fix broken packages...")
                 if self.dpkg.fix_broken_packages():
                     warnings.append("Fixed broken package states")
@@ -223,83 +188,18 @@ class PackageEngine:
             )
     
     def _force_install_package(self, package: Package) -> OperationResult:
-        """Force install a package using aggressive methods."""
-        print(f"Force installing: {package.name}")
+        """Force install a package using intelligent methods with protection strategies."""
+        print(f"🔧 Force installing package: {package.name}")
         
-        try:
-            # Try APT with force options first
-            success = self.apt.install(package.name, package.version)
-            
-            if not success:
-                # Try to fix broken packages first
-                self.dpkg.fix_broken_packages()
-                
-                # Try again
-                success = self.apt.install(package.name, package.version)
-            
-            if success:
-                return OperationResult(
-                    success=True,
-                    packages_affected=[package],
-                    warnings=["Package installed with force methods"],
-                    errors=[],
-                    user_confirmations_required=[]
-                )
-            else:
-                return OperationResult(
-                    success=False,
-                    packages_affected=[],
-                    warnings=[],
-                    errors=[f"Force installation failed for {package.name}"],
-                    user_confirmations_required=[]
-                )
-                
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                packages_affected=[],
-                warnings=[],
-                errors=[f"Force installation error: {str(e)}"],
-                user_confirmations_required=[]
-            )
+        # Delegate to package manager's improved force install method
+        return self.package_manager._force_install_package(package)
     
     def _force_remove_package(self, package: Package) -> OperationResult:
-        """Force remove a package using DPKG."""
-        print(f"Force removing: {package.name}")
+        """Force remove a package using intelligent methods with protection strategies."""
+        print(f"🔧 Force removing package: {package.name}")
         
-        try:
-            # Try DPKG force removal
-            success = self.dpkg.force_remove(package.name)
-            
-            if not success:
-                # Try purge as last resort
-                success = self.dpkg.purge_package(package.name, force=True)
-            
-            if success:
-                return OperationResult(
-                    success=True,
-                    packages_affected=[package],
-                    warnings=["Package removed with force methods"],
-                    errors=[],
-                    user_confirmations_required=[]
-                )
-            else:
-                return OperationResult(
-                    success=False,
-                    packages_affected=[],
-                    warnings=[],
-                    errors=[f"Force removal failed for {package.name}"],
-                    user_confirmations_required=[]
-                )
-                
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                packages_affected=[],
-                warnings=[],
-                errors=[f"Force removal error: {str(e)}"],
-                user_confirmations_required=[]
-            )
+        # Delegate to package manager's improved force remove method
+        return self.package_manager._force_remove_package(package)
     
     def _try_force_install(self, package_name: str, version: Optional[str]) -> bool:
         """Try various force installation methods."""
@@ -318,7 +218,25 @@ class PackageEngine:
             if package_name.endswith('.deb'):
                 return self.dpkg.force_install_deb(package_name)
             
-            return False
+            # Method 4: Try force installation with flags
+            if version:
+                package_spec = f"{package_name}={version}"
+            else:
+                package_spec = package_name
+            
+            # Try with --force-yes
+            import subprocess
+            cmd = ['sudo', 'apt-get', 'install', '-y', '--force-yes', package_spec]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                return True
+            
+            # Try with --allow-downgrades
+            cmd = ['sudo', 'apt-get', 'install', '-y', '--allow-downgrades', package_spec]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            return result.returncode == 0
             
         except Exception:
             return False

@@ -9,10 +9,9 @@ Intelligent package management for custom Debian package systems with offline/on
 - **Dual Mode Operation**: Support for both offline (pinned versions) and online/artifactory modes
 - **Intelligent Dependency Resolution**: Advanced conflict detection and resolution with user confirmation
 - **Custom Package Recognition**: Configurable prefixes for identifying custom packages
-- **Removable Packages Management**: JSON-based configuration for packages that can be safely removed during conflicts
 - **Enhanced System Cleanup**: Comprehensive cleanup functionality for APT cache, offline repositories, and artifactory
 - **Remote System Execution**: SSH-based remote package management across multiple systems
-- **Force Operations**: Safe force installation/removal with comprehensive user confirmation
+- **Force Operations**: Safe force installation/removal with comprehensive protection strategies
 - **System Health Monitoring**: Built-in health checks and automatic system repair
 - **Standalone Executable**: Works without system Python dependencies
 - **Comprehensive CLI**: Full-featured command-line interface with detailed help
@@ -39,282 +38,190 @@ sudo ./install.sh --local --uninstall
 - Default configuration
 - Full package management capabilities
 
-**Requirements:**
-- Ubuntu 18.04+ or Debian 10+
-- Python 3.8+
-- Root privileges (sudo)
-- `apt`, `dpkg`, `python3-apt`
+### 🐳 Docker Installation (Development/Testing)
 
-### 🐳 Docker Environment (Development)
-
-Set up an isolated Docker environment for development and testing:
+Set up a complete DPM environment in Docker for development and testing:
 
 ```bash
-# Set up Docker environment (auto-starts container)
-./install.sh --docker
+# Build and start Docker environment
+sudo ./install.sh --docker
 
-# Connect to running environment
-./dpm-docker-start.sh
+# Stop Docker environment
+sudo ./install.sh --docker --stop
 
-# Stop the environment when done
-./dpm-docker-stop.sh
+# Remove Docker environment completely
+sudo ./install.sh --docker --remove
 ```
 
 **Features included:**
-- Isolated development environment
-- Bash autocomplete pre-configured
-- Example packages for testing
-- SSH keys for remote testing
-- Live code editing support
-
-**Requirements:**
-- Docker and Docker Compose
-- No root privileges needed
-- Isolated from host system
-
-**Benefits of Docker Mode:**
-- 🔒 **Safe Testing**: Isolated environment with no impact on host
-- 🧪 **Development Ready**: Live code editing with immediate testing
-- 📦 **Pre-configured**: Example packages and SSH keys included
-- 🚀 **Quick Setup**: Ready to use in minutes
-- ⚡ **Auto-start**: Container starts automatically during setup
-
-### ⌨️ Autocomplete Support
-
-Both installation modes include comprehensive bash autocomplete:
-
-- **Commands**: Tab completion for all DPM commands (`install`, `remove`, `list`, etc.)
-- **Options**: Tab completion for command-line flags (`--version`, `--force`, `--all`, etc.)
-- **Package Names**: Tab completion for available and installed packages
-- **SSH Options**: Tab completion for connection parameters
-
-```bash
-# Try autocomplete after installation
-dpm <TAB><TAB>              # Shows all available commands
-dpm install <TAB><TAB>      # Shows available packages
-dpm remove <TAB><TAB>       # Shows installed packages
-dpm list --<TAB><TAB>       # Shows available options
-```
-
-### Installation Help
-
-```bash
-# Show installation options
-./install.sh --help
-
-# Quick help
-./install.sh              # Shows usage information
-```
-
-### System Requirements
-
-- **Operating System**: Ubuntu 18.04+ or Debian 10+
-- **Python**: 3.8 or higher
-- **Privileges**: Root access required for package operations
-- **Dependencies**: `apt`, `dpkg`, `python3-apt`
-
-## Recent Fixes & Improvements
-
-### Fixed Issues
-
-- ✅ **--online mode**: Fixed missing `--online` option in install command
-- ✅ **Offline mode detection**: Improved logic to prevent false offline mode when internet is available
-- ✅ **Docker structure**: Reorganized Docker files into proper directory structure
-- ✅ **Mode switching**: Enhanced mode switching with proper validation and user feedback
-
-### Enhanced Features
-
-- 🔧 **Mode Management**: Better online/offline mode detection and switching
-- 📦 **Docker Environment**: Organized file structure with dedicated scripts and configuration
-- 🌐 **Network Detection**: Improved network and repository accessibility checks
-- 🚀 **Installation Options**: Both `--online` and `--offline` flags now work correctly
+- Complete isolated environment
+- Pre-built example packages
+- All DPM functionality in a container
+- Easy development and testing workflow
 
 ## Available Commands
 
-After installation, DPM provides the following commands:
+### 📦 Package Management
 
-### Package Management
-```bash
-dpm install <package>              # Install a package  
-dpm install <package> --version X  # Install specific version
-dpm install <package> --force      # Force installation
-dpm remove <package>               # Remove a package
-dpm info <package>                 # Show package information
-```
-
-### Package Listing
-```bash
-dpm list                          # List custom packages (default)
-dpm list --all                    # List all installed packages
-dpm list --metapackages          # List only metapackages
-dpm list --broken                # List broken packages
-dpm list --simple                # Simple list format
-```
-
-### System Management
-```bash
-dpm health                        # Check system health
-dpm fix                          # Fix broken packages
-dpm cleanup --all                # Clean up system
-dpm mode --status                # Check current mode
-dpm mode --offline|--online      # Switch modes (enables/disables Artifactory)
-```
-
-### Remote Management
-```bash
-dpm connect <user> <host>        # Connect to remote system
-dpm connect                      # Show connection status
-dpm connect --disconnect         # Disconnect from remote
-```
-
-### Help and Information
-```bash
-dpm --help                       # Show all available commands
-dpm <command> --help             # Show help for specific command
-```
-
-## Quick Start
-
-### Local Installation
-```bash
-# Install DPM locally
-sudo ./install.sh --local
-
-# Basic usage with autocomplete
-dpm install mycompany-dev-tools   # Install custom package
-dpm list                          # List custom packages  
-dpm health                        # Check system health
-
-# Use tab completion
-dpm <TAB><TAB>                    # Show all commands
-dpm install <TAB><TAB>            # Show available packages
-```
-
-### Docker Environment
-```bash
-# Set up Docker environment (auto-starts)
-./install.sh --docker
-
-# Connect to running container
-./dpm-docker-start.sh
-
-# Inside container - test DPM with autocomplete
-dpm health                        # Check system
-dpm list --all                    # List all packages
-dpm mode --status                 # Check mode
-dpm <TAB><TAB>                    # Try tab completion
-```
-
-## Detailed Usage
-
-### Package Operations
+#### `dpm install <package-name> [--version <version>] [--force]`
+Install a package or specific version of a package.
 
 ```bash
-# Install packages
-dpm install <package-name>                    # Standard installation
-dpm install <package-name> --version 1.2.3   # Install specific version
-dpm install <package-name> --version 1.2.3 --force # Force install with impact analysis and confirmation
+# Install latest version
+dpm install mycompany-webserver
 
-# Remove packages
-dpm remove <package-name>                     # Standard removal
-dpm remove <package-name> --force            # Force remove with impact analysis and confirmation
-dpm remove <package-name> --purge            # Remove with config files
+# Install specific version
+dpm install mycompany-webserver --version 1.2.3
 
-# Package information
-dpm info <package-name>                       # Basic package info
-dpm info <package-name> --dependencies       # Include dependency tree
+# Force install with intelligent protection strategies
+dpm install mycompany-webserver --force
 ```
 
-### Package Listing
+**Force Installation Protection:**
+- Automatically analyzes impact before proceeding
+- Marks dependent custom packages as manually installed to prevent auto-removal
+- Tries multiple safe installation methods before showing user confirmation
+- Only shows confirmation for significant impacts as a last resort
+- Uses table format for clear impact visualization
+
+#### `dpm remove <package-name> [--force] [--purge]`
+Remove a package or metapackage.
 
 ```bash
-# List packages (custom prefixes by default)
-dpm list                          # Custom packages only (default)
-dpm list --all                    # All installed packages
-dpm list --metapackages          # Only metapackages
-dpm list --broken                # Only broken packages
-dpm list --simple                # Simple list format (no table)
+# Remove package
+dpm remove mycompany-webserver
+
+# Force remove with intelligent protection strategies
+dpm remove mycompany-webserver --force
+
+# Remove package and purge configuration files
+dpm remove mycompany-webserver --purge
 ```
 
-### System Health and Maintenance
+**Force Removal Protection:**
+- Analyzes dependencies and reverse dependencies before proceeding
+- Marks dependent custom packages as manually installed to prevent cascade removal
+- Tries multiple safe removal methods before showing user confirmation
+- Only shows confirmation for significant impacts as a last resort
+- Uses table format for clear impact visualization
+
+### 🔄 Mode Management
+
+#### `dpm mode`
+Show current mode status (online/offline).
 
 ```bash
-# System health checks
-dpm health                        # Basic health check
-dpm health --verbose              # Detailed health information
-
-# System repair
-dpm fix                          # Fix broken packages
-dpm fix --force                  # Aggressive fixing methods
-
-# System cleanup
-dpm cleanup --all                # Comprehensive cleanup
-dpm cleanup --apt-cache          # Clean APT cache only
-dpm cleanup --offline-repos      # Clean offline repositories
+dpm mode
 ```
 
-### Remote System Management
+#### `dpm mode --offline`
+Switch to offline mode using pinned versions.
 
 ```bash
-# Connect to remote system (all subsequent commands execute remotely)
-dpm connect user 10.0.1.5                  # Connect via SSH
-dpm connect user host.com --key ~/.ssh/id_rsa --port 2222
-
-# Check connection status
-dpm connect                                 # Show current connection status
-
-# All regular DPM commands now execute on the remote system
-dpm install my-package                      # Install on remote system
-dpm remove old-package                      # Remove from remote system
-dpm list --custom                           # List remote packages
-dpm health                                  # Check remote system health
-dpm cleanup --all                           # Clean remote system
-
-# Disconnect and return to local execution
-dpm connect --disconnect                    # Return to local execution
+dpm mode --offline
 ```
 
-**Key Benefits of Connection State Approach:**
+#### `dpm mode --online`
+Switch to online mode using latest available versions.
 
-- **Seamless Experience**: No need to prefix every command with `remote exec`
-- **Consistent Interface**: All DPM commands work the same way locally and remotely
-- **Clear Context**: Always know if you're operating locally or remotely
-- **Simple Switching**: Easy to switch between local and remote execution
+```bash
+dpm mode --online
+```
+
+### 📋 Package Information
+
+#### `dpm list [--all] [--broken] [--metapackages] [--simple] [--table]`
+List installed packages with filtering options.
+
+```bash
+# List custom packages only (default)
+dpm list
+
+# List all installed packages
+dpm list --all
+
+# List broken packages
+dpm list --broken
+
+# List metapackages only
+dpm list --metapackages
+
+# Simple list format (package names only)
+dpm list --simple
+
+# Table format with detailed information
+dpm list --table
+```
+
+#### `dpm info <package-name> [--dependencies]`
+Show detailed information about a package.
+
+```bash
+# Basic package information
+dpm info mycompany-webserver
+
+# Include dependency information
+dpm info mycompany-webserver --dependencies
+```
+
+### 🔧 System Maintenance
+
+#### `dpm health`
+Check system package health status.
+
+```bash
+dpm health
+```
+
+#### `dpm fix`
+Attempt to fix broken package states.
+
+```bash
+dpm fix
+```
+
+#### `dpm cleanup [--apt-cache] [--offline-repo] [--artifactory]`
+Clean up system resources.
+
+```bash
+# Clean all resources
+dpm cleanup
+
+# Clean APT cache only
+dpm cleanup --apt-cache
+
+# Clean offline repository only
+dpm cleanup --offline-repo
+
+# Clean artifactory cache only
+dpm cleanup --artifactory
+```
+
+### 🔗 Remote Management
+
+#### `dpm connect <host> [--port <port>] [--user <user>]`
+Connect to a remote system for package management.
+
+```bash
+# Connect with default settings
+dpm connect 192.168.1.100
+
+# Connect with custom port and user
+dpm connect 192.168.1.100 --port 2222 --user admin
+```
+
+#### `dpm connect --disconnect`
+Disconnect from remote system.
+
+```bash
+dpm connect --disconnect
+```
 
 ## Configuration
 
-DPM uses JSON configuration files for system settings:
+DPM uses JSON configuration files to manage settings. The default configuration includes:
 
-- **System Config**: `/etc/debian-package-manager/config.json`
-- **User Config**: `~/.config/debian-package-manager/config.json`
-
-### Autocomplete Configuration
-
-Bash autocomplete is automatically installed and configured:
-
-- **Local Installation**: Installed to `/etc/bash_completion.d/dpm`
-- **Docker Environment**: Pre-configured in container
-- **Manual Setup**: Source the completion script in your `~/.bashrc`
-
-```bash
-# Manual autocomplete setup (if needed)
-source /etc/bash_completion.d/dpm
-
-# Or add to ~/.bashrc for permanent setup
-echo "source /etc/bash_completion.d/dpm" >> ~/.bashrc
-```
-
-**Autocomplete Features:**
-- ✅ Command completion (`dpm <TAB><TAB>`)
-- ✅ Option completion (`dpm install --<TAB><TAB>`)
-- ✅ Package name completion for available packages
-- ✅ Installed package completion for remove operations
-- ✅ SSH key file completion for connect operations
-- ✅ Context-aware suggestions based on command
-
-### Configuration Example
-
-```
+```json
 {
   "custom_prefixes": [
     "mycompany-",
@@ -331,64 +238,71 @@ echo "source /etc/bash_completion.d/dpm" >> ~/.bashrc
 }
 ```
 
-### Editing Configuration
+### Custom Prefixes
+Only packages with configured prefixes can be safely removed to prevent accidental system package removal.
 
+## Force Operations Behavior
+
+DPM's force operations are designed with safety as the top priority:
+
+### Force Installation (`dpm install --force`)
+1. **Impact Analysis**: Analyzes what packages would be removed or installed
+2. **Protection Strategy**: Marks dependent custom packages as manually installed
+3. **Safe Methods First**: Tries `--no-remove`, `--only-upgrade`, and other safe flags
+4. **Intelligent Fallback**: Only shows user confirmation for significant impacts
+5. **Multiple Strategies**: Uses various APT/DPKG flags as needed
+6. **Clear Visualization**: Shows impacts in table format when confirmation is required
+
+### Force Removal (`dpm remove --force`)
+1. **Dependency Analysis**: Identifies what dependencies would be removed
+2. **Reverse Dependency Check**: Finds packages that depend on the target
+3. **Protection Strategy**: Marks dependent custom packages as manually installed
+4. **Safe Removal First**: Tries standard removal before force methods
+5. **Intelligent Fallback**: Only shows user confirmation for significant impacts
+6. **Multiple Strategies**: Uses various APT/DPKG force flags as needed
+7. **Clear Visualization**: Shows impacts in table format when confirmation is required
+
+## Quick Start Examples
+
+### Local Installation
 ```bash
-# Edit system configuration
-sudo nano /etc/debian-package-manager/config.json
+# Install DPM locally
+sudo ./install.sh --local
 
-# Edit user configuration
-nano ~/.config/debian-package-manager/config.json
-```
+# Install a package
+dpm install mycompany-webserver
 
-### Enhanced Force Operations
+# List installed custom packages
+dpm list
 
-DPM provides intelligent force operations that analyze impact before proceeding:
-
-**Force Installation (`--force`)**:
-- Shows detailed impact analysis in table format
-- Lists packages that will be removed due to conflicts
-- Identifies custom packages at risk
-- Applies protection strategies to preserve custom packages
-- Requires explicit user confirmation (type "YES")
-
-**Force Removal (`--force`)**:
-- Shows dependency impact analysis in table format
-- Lists dependencies that will be removed
-- Identifies packages that depend on the target (may break)
-- Applies protection strategies to preserve custom packages
-- Requires explicit user confirmation (type "YES")
-
-Both operations use advanced dependency analysis to minimize system impact while achieving the desired outcome.
-
-### Artifactory Mode Management
-
-DPM automatically manages Artifactory integration when switching between offline and online modes:
-
-**Offline Mode (`dpm mode --offline`)**:
-- Enables Artifactory repository configuration
-- Sets up offline package cache
-- Enables pinned version resolution
-- Prepares offline dependencies
-
-**Online Mode (`dpm mode --online`)**:
-- Restores default repository configuration
-- Disables offline package cache
-- Enables latest version resolution
-- Cleans offline dependencies
-
-Mode switching automatically executes the appropriate Artifactory scripts to ensure proper configuration.
-
-### System Maintenance
-
-```bash
 # Check system health
-dpm health --verbose
-
-# Fix broken packages
-dpm fix --force
-
-# List packages by type
-dpm list --custom      # Show only custom packages
-dpm list --broken      # Show broken packages
+dpm health
 ```
+
+### Docker Environment
+```bash
+# Set up Docker environment
+sudo ./install.sh --docker
+
+# The environment will automatically start and show available commands
+# All example packages are pre-built and ready to install
+```
+
+## Development
+
+### Building Example Packages
+Example packages are automatically built during Docker setup. To manually build:
+
+```bash
+./docker/scripts/build-examples.sh
+```
+
+### Running Tests
+Execute the test suite:
+
+```bash
+python -m pytest tests/ -v
+```
+
+## License
+MIT License - See [LICENSE](LICENSE) file for details.

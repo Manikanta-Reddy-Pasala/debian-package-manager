@@ -6,6 +6,7 @@ from ..config import Config
 from ..interfaces.apt import APTInterface
 from ..interfaces.dpkg import DPKGInterface
 from .classifier import PackageClassifier
+import subprocess
 
 
 class ForceOperationAnalyzer:
@@ -120,7 +121,7 @@ class ForceOperationAnalyzer:
                         idx = lines.index(line)
                         removal_text = ' '.join(lines[idx:idx+10])  # Get following lines
                         # Extract package names (basic regex)
-                        removed_packages = re.findall(r'\\b([a-zA-Z0-9][a-zA-Z0-9+\\-\\.]+)\\b', removal_text)
+                        removed_packages = re.findall(r'\b([a-zA-Z0-9][a-zA-Z0-9+\-\.]+)\b', removal_text)
                         for pkg_name in removed_packages:
                             if pkg_name != package_name and self.apt.is_installed(pkg_name):
                                 pkg_info = self.apt.get_package_info(pkg_name)
@@ -157,7 +158,7 @@ class ForceOperationAnalyzer:
                         # Extract package names
                         idx = lines.index(line)
                         install_text = ' '.join(lines[idx:idx+10])
-                        new_packages = re.findall(r'\\b([a-zA-Z0-9][a-zA-Z0-9+\\-\\.]+)\\b', install_text)
+                        new_packages = re.findall(r'\b([a-zA-Z0-9][a-zA-Z0-9+\-\.]+)\b', install_text)
                         for pkg_name in new_packages:
                             if pkg_name != package_name and not self.apt.is_installed(pkg_name):
                                 # Create package object for new dependency
@@ -192,7 +193,7 @@ class ForceOperationAnalyzer:
                     if 'The following packages will be REMOVED:' in line:
                         idx = lines.index(line)
                         removal_text = ' '.join(lines[idx:idx+10])
-                        removed_packages = re.findall(r'\\b([a-zA-Z0-9][a-zA-Z0-9+\\-\\.]+)\\b', removal_text)
+                        removed_packages = re.findall(r'\b([a-zA-Z0-9][a-zA-Z0-9+\-\.]+)\b', removal_text)
                         for pkg_name in removed_packages:
                             if pkg_name != package_name and self.apt.is_installed(pkg_name):
                                 pkg_info = self.apt.get_package_info(pkg_name)
@@ -263,17 +264,31 @@ class ForceOperationAnalyzer:
         try:
             # Mark packages as manually installed to prevent auto-removal
             if strategy.get('mark_as_manual'):
-                import subprocess
                 for pkg_name in strategy['mark_as_manual']:
                     cmd = ['sudo', 'apt-mark', 'manual', pkg_name]
                     result = subprocess.run(cmd, capture_output=True, text=True)
                     if result.returncode == 0:
-                        print(f"Marked {pkg_name} as manually installed")
+                        print(f"✅ Marked {pkg_name} as manually installed to prevent auto-removal")
                     else:
-                        print(f"Warning: Could not mark {pkg_name} as manual")
+                        print(f"⚠️  Warning: Could not mark {pkg_name} as manual: {result.stderr}")
             
             return True
         
         except Exception as e:
-            print(f"Warning: Could not apply protection strategy: {e}")
+            print(f"⚠️  Warning: Could not apply protection strategy: {e}")
+            return False
+    
+    def mark_package_as_manual(self, package_name: str) -> bool:
+        """Mark a single package as manually installed."""
+        try:
+            cmd = ['sudo', 'apt-mark', 'manual', package_name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                print(f"✅ Marked {package_name} as manually installed")
+                return True
+            else:
+                print(f"⚠️  Warning: Could not mark {package_name} as manual: {result.stderr}")
+                return False
+        except Exception as e:
+            print(f"⚠️  Error marking {package_name} as manual: {e}")
             return False
