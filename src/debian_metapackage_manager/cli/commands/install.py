@@ -24,7 +24,7 @@ class InstallCommandHandler(CommandHandler):
         parser.add_argument('package_name', help='Name of the package to install')
         parser.add_argument('--version', help='Specific version to install')
         parser.add_argument('--force', action='store_true', 
-                           help='Force installation even with conflicts')
+                           help='Force installation even with conflicts - shows impact analysis and requires confirmation')
         return parser
     
     def handle(self, args: argparse.Namespace) -> int:

@@ -23,7 +23,7 @@ class RemoveCommandHandler(CommandHandler):
         parser = subparsers.add_parser('remove', help='Remove a package or metapackage')
         parser.add_argument('package_name', help='Name of the package to remove')
         parser.add_argument('--force', action='store_true', 
-                          help='Force removal even with dependencies')
+                          help='Force removal even with dependencies - shows impact analysis and requires confirmation')
         parser.add_argument('--purge', action='store_true', 
                           help='Purge configuration files as well')
         return parser

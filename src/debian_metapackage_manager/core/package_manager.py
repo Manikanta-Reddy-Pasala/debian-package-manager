@@ -7,6 +7,8 @@ from ..interfaces.apt import APTInterface
 from ..interfaces.dpkg import DPKGInterface
 from .classifier import PackageClassifier
 from .mode_manager import ModeManager
+from ..utils.table_formatter import TableFormatter
+from ..utils.force_analyzer import ForceOperationAnalyzer
 
 
 class PackageManager:
@@ -19,6 +21,7 @@ class PackageManager:
         self.dpkg = DPKGInterface()
         self.classifier = PackageClassifier(self.config)
         self.mode_manager = ModeManager(self.config, self.apt)
+        self.force_analyzer = ForceOperationAnalyzer(self.config)
     
     def install_package(self, name: str, force: bool = False, 
                        version: Optional[str] = None) -> OperationResult:
@@ -211,6 +214,123 @@ class PackageManager:
                 errors=[error_msg],
                 user_confirmations_required=[]
             )
+    
+    def _show_force_install_confirmation(self, impact_analysis: dict) -> bool:
+        """Show force installation impact and get user confirmation."""
+        print("\n" + "="*80)
+        print("FORCE INSTALLATION CONFIRMATION")
+        print("="*80)
+        print(f"Package: {impact_analysis['target_package']}")
+        if impact_analysis['target_version']:
+            print(f"Version: {impact_analysis['target_version']}")
+        print()
+        
+        # Show conflicts table
+        if impact_analysis['conflicts_to_remove']:
+            conflicts_table = TableFormatter.format_packages_table(
+                impact_analysis['conflicts_to_remove'],
+                columns=["S.No", "Package Name", "Version", "Type", "Risk Level"],
+                title="Packages to be REMOVED due to conflicts"
+            )
+            print(conflicts_table)
+            print()
+        
+        # Show custom packages at risk
+        if impact_analysis['custom_packages_at_risk']:
+            print("⚠️  CUSTOM PACKAGES AT RISK:")
+            for pkg in impact_analysis['custom_packages_at_risk']:
+                print(f"   - {pkg.name} (v{pkg.version})")
+            print()
+        
+        # Show protection strategy
+        if impact_analysis['preservable_packages']:
+            print("🛡️  PROTECTION STRATEGY:")
+            print("   - Marking custom packages as manually installed")
+            print("   - Preserving custom package configurations")
+            print()
+        
+        # Get user confirmation
+        print("This operation will force install the package with the above impacts.")
+        response = input("Do you want to proceed? (type 'YES' to confirm): ")
+        return response.upper() == "YES"
+    
+    def _show_force_remove_confirmation(self, impact_analysis: dict) -> bool:
+        """Show force removal impact and get user confirmation."""
+        print("\n" + "="*80)
+        print("FORCE REMOVAL CONFIRMATION")
+        print("="*80)
+        print(f"Package: {impact_analysis['target_package']}")
+        print()
+        
+        # Show dependencies that will be removed
+        if impact_analysis['dependencies_to_remove']:
+            deps_table = TableFormatter.format_packages_table(
+                impact_analysis['dependencies_to_remove'],
+                columns=["S.No", "Package Name", "Version", "Type", "Risk Level"],
+                title="Dependencies to be REMOVED"
+            )
+            print(deps_table)
+            print()
+        
+        # Show affected dependents
+        if impact_analysis['dependents_affected']:
+            dependents_table = TableFormatter.format_packages_table(
+                impact_analysis['dependents_affected'],
+                columns=["S.No", "Package Name", "Version", "Type"],
+                title="Packages that DEPEND on this package (may break)"
+            )
+            print(dependents_table)
+            print()
+        
+        # Show custom packages at risk
+        if impact_analysis['custom_packages_at_risk']:
+            print("⚠️  CUSTOM PACKAGES AT RISK:")
+            for pkg in impact_analysis['custom_packages_at_risk']:
+                print(f"   - {pkg.name} (v{pkg.version})")
+            print()
+        
+        # Show protection strategy
+        if impact_analysis['preservable_packages']:
+            print("🛡️  PROTECTION STRATEGY:")
+            print("   - Marking custom packages as manually installed")
+            print("   - Preserving custom package configurations")
+            print()
+        
+        # Get user confirmation
+        print("This operation will force remove the package with the above impacts.")
+        response = input("Do you want to proceed? (type 'YES' to confirm): ")
+        return response.upper() == "YES"
+        """Install package with force flags to override conflicts."""
+        try:
+            import subprocess
+            
+            if version:
+                package_spec = f"{package_name}={version}"
+            else:
+                package_spec = package_name
+            
+            # Try with --force-yes to override conflicts
+            cmd = ['sudo', 'apt-get', 'install', '-y', '--force-yes', package_spec]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"Successfully force installed: {package_spec}")
+                return True
+            else:
+                # Try with --allow-downgrades if needed
+                cmd = ['sudo', 'apt-get', 'install', '-y', '--allow-downgrades', package_spec]
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    print(f"Successfully force installed with downgrades: {package_spec}")
+                    return True
+                else:
+                    print(f"Failed to force install {package_spec}: {result.stderr}")
+                    return False
+                    
+        except Exception as e:
+            print(f"Error force installing {package_name}: {e}")
+            return False
     
     def _safe_install_with_no_remove(self, package_name: str, version: Optional[str]) -> bool:
         """Install package with --no-remove flag to prevent removing other packages."""
@@ -452,15 +572,34 @@ class PackageManager:
             )
     
     def _force_install_package(self, package: Package) -> OperationResult:
-        """Force install a package using aggressive methods."""
+        """Force install a package using aggressive methods with user confirmation."""
         print(f"Force installing: {package.name}")
+        
+        # Analyze impact before proceeding
+        impact_analysis = self.force_analyzer.analyze_force_install_impact(
+            package.name, package.version
+        )
+        
+        # Show impact analysis to user
+        if impact_analysis['requires_confirmation']:
+            self._show_force_install_confirmation(impact_analysis)
+            
+            # Apply protection strategy
+            self.force_analyzer.apply_protection_strategy(
+                impact_analysis['protection_strategy']
+            )
         
         try:
             # Try to fix broken packages first
             self.dpkg.fix_broken_packages()
             
-            # Try again
-            success = self.apt.install(package.name, package.version)
+            # Try with --force-yes and --no-remove flags
+            success = self._safe_install_with_force_flags(package.name, package.version)
+            
+            if not success:
+                # Try to resolve locks
+                if self.dpkg._handle_locks():
+                    success = self._safe_install_with_force_flags(package.name, package.version)
             
             if success:
                 return OperationResult(
@@ -489,8 +628,20 @@ class PackageManager:
             )
     
     def _force_remove_package(self, package: Package) -> OperationResult:
-        """Force remove a package using DPKG."""
+        """Force remove a package using DPKG with user confirmation and protection."""
         print(f"Force removing: {package.name}")
+        
+        # Analyze impact before proceeding
+        impact_analysis = self.force_analyzer.analyze_force_remove_impact(package.name)
+        
+        # Show impact analysis to user
+        if impact_analysis['requires_confirmation']:
+            self._show_force_remove_confirmation(impact_analysis)
+            
+            # Apply protection strategy
+            self.force_analyzer.apply_protection_strategy(
+                impact_analysis['protection_strategy']
+            )
         
         try:
             # Try DPKG safe removal first

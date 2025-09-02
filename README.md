@@ -213,11 +213,11 @@ dpm <TAB><TAB>                    # Try tab completion
 # Install packages
 dpm install <package-name>                    # Standard installation
 dpm install <package-name> --version 1.2.3   # Install specific version
-dpm install <package-name> --version 1.2.3 --force # Force install specific version
+dpm install <package-name> --version 1.2.3 --force # Force install with impact analysis and confirmation
 
 # Remove packages
 dpm remove <package-name>                     # Standard removal
-dpm remove <package-name> --force            # Force remove with dependencies
+dpm remove <package-name> --force            # Force remove with impact analysis and confirmation
 dpm remove <package-name> --purge            # Remove with config files
 
 # Package information
@@ -349,6 +349,26 @@ sudo nano /etc/debian-package-manager/config.json
 # Edit user configuration
 nano ~/.config/debian-package-manager/config.json
 ```
+
+### Enhanced Force Operations
+
+DPM provides intelligent force operations that analyze impact before proceeding:
+
+**Force Installation (`--force`)**:
+- Shows detailed impact analysis in table format
+- Lists packages that will be removed due to conflicts
+- Identifies custom packages at risk
+- Applies protection strategies to preserve custom packages
+- Requires explicit user confirmation (type "YES")
+
+**Force Removal (`--force`)**:
+- Shows dependency impact analysis in table format
+- Lists dependencies that will be removed
+- Identifies packages that depend on the target (may break)
+- Applies protection strategies to preserve custom packages
+- Requires explicit user confirmation (type "YES")
+
+Both operations use advanced dependency analysis to minimize system impact while achieving the desired outcome.
 
 ### System Maintenance
 
