@@ -235,8 +235,6 @@ class RemotePackageManager:
             remote_cmd = self._build_health_command()
         elif operation == 'fix':
             remote_cmd = self._build_fix_command(**kwargs)
-        elif operation == 'config':
-            remote_cmd = self._build_config_command(**kwargs)
         elif operation == 'mode':
             remote_cmd = self._build_mode_command(**kwargs)
         elif operation == 'cleanup':
@@ -343,27 +341,6 @@ class RemotePackageManager:
         cmd = ['dpm', 'fix']
         if kwargs.get('force'):
             cmd.append('--force')
-        return cmd
-    
-    def _build_config_command(self, **kwargs) -> List[str]:
-        """Build remote config command."""
-        cmd = ['dpm', 'config']
-        if kwargs.get('show'):
-            cmd.append('--show')
-        if kwargs.get('add_prefix'):
-            cmd.extend(['--add-prefix', kwargs['add_prefix']])
-        if kwargs.get('remove_prefix'):
-            cmd.extend(['--remove-prefix', kwargs['remove_prefix']])
-        if kwargs.get('add_removable'):
-            cmd.extend(['--add-removable', kwargs['add_removable']])
-        if kwargs.get('remove_removable'):
-            cmd.extend(['--remove-removable', kwargs['remove_removable']])
-        if kwargs.get('list_removable'):
-            cmd.append('--list-removable')
-        if kwargs.get('set_offline'):
-            cmd.append('--set-offline')
-        if kwargs.get('set_online'):
-            cmd.append('--set-online')
         return cmd
     
     def _build_mode_command(self, **kwargs) -> List[str]:

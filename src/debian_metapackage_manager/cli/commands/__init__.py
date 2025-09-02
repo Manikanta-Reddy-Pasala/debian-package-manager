@@ -7,7 +7,6 @@ from .info import InfoCommandHandler
 from .list import ListCommandHandler
 from .health import HealthCommandHandler
 from .fix import FixCommandHandler
-from .config import ConfigCommandHandler
 from .cleanup import CleanupCommandHandler
 from .connect import ConnectCommandHandler
 
@@ -19,7 +18,6 @@ __all__ = [
     'ListCommandHandler',
     'HealthCommandHandler',
     'FixCommandHandler',
-    'ConfigCommandHandler',
     'CleanupCommandHandler',
     'ConnectCommandHandler'
 ]

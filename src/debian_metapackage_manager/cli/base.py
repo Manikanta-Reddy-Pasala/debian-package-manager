@@ -58,7 +58,6 @@ Examples:
   dpm remove old-package --force           # Force remove package locally
   dpm list --custom                       # List custom packages locally
   dpm health                              # Check local system health
-  dpm config --add-prefix "newcompany-"   # Add custom prefix locally
   dpm cleanup --all                       # Comprehensive local cleanup
   
   # Remote operations

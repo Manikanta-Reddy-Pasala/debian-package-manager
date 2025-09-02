@@ -94,7 +94,6 @@ dpm health --verbose          # Check system health
 dpm mode --status            # Check current mode
 dpm mode --online            # Switch to online mode
 dpm mode --offline           # Switch to offline mode
-dpm config --show            # Show configuration
 dpm list --custom            # List custom packages
 dpm info docker-example      # Show example package info
 ```
@@ -104,11 +103,6 @@ dpm info docker-example      # Show example package info
 # Test package operations
 dpm remove docker-example    # Remove example package
 dpm install /tmp/example-packages/docker-example-1.0.0.deb  # Reinstall
-
-# Test configuration management
-dpm config --add-prefix "test-"
-dpm config --add-removable "old-package"
-dpm config --list-removable
 ```
 
 ### Remote Connection Testing
