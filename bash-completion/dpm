@@ -1,0 +1,177 @@
+#!/bin/bash
+# Bash completion for DPM (Debian Package Manager)
+# Installation: Copy this file to /etc/bash_completion.d/ or source it in your ~/.bashrc
+
+_dpm_completion() {
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Main commands
+    local commands="install remove mode info list health fix cleanup connect"
+    
+    # Global options
+    local global_opts="--help -h --version"
+
+    # Get available packages for autocompletion
+    _get_packages() {
+        # Try to get installed packages matching custom prefixes
+        if command -v dpkg-query &> /dev/null; then
+            dpkg-query -W -f='${Package}\n' 2>/dev/null | grep -E '^(mycompany-|internal-|custom-|dev-|local-|meta-|bundle-|docker-)' 2>/dev/null
+        fi
+    }
+
+    # Get all installed packages
+    _get_all_packages() {
+        if command -v dpkg-query &> /dev/null; then
+            dpkg-query -W -f='${Package}\n' 2>/dev/null
+        fi
+    }
+
+    # Check if we're in the middle of a command
+    local command=""
+    local i=1
+    while [[ $i -lt $COMP_CWORD ]]; do
+        if [[ "${COMP_WORDS[$i]}" != -* ]]; then
+            command="${COMP_WORDS[$i]}"
+            break
+        fi
+        ((i++))
+    done
+
+    # If no command is specified, complete commands
+    if [[ -z "$command" ]]; then
+        if [[ "$cur" == -* ]]; then
+            COMPREPLY=($(compgen -W "$global_opts" -- "$cur"))
+        else
+            COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+        fi
+        return 0
+    fi
+
+    # Complete based on the command
+    case "$command" in
+        install)
+            case "$prev" in
+                --version)
+                    # Version completion could be enhanced with available versions
+                    COMPREPLY=()
+                    ;;
+                install)
+                    # Package name completion
+                    if command -v apt-cache &> /dev/null; then
+                        COMPREPLY=($(compgen -W "$(apt-cache pkgnames 2>/dev/null | head -50)" -- "$cur"))
+                    fi
+                    ;;
+                *)
+                    if [[ "$cur" == -* ]]; then
+                        COMPREPLY=($(compgen -W "--version --force --help" -- "$cur"))
+                    elif [[ $COMP_CWORD -eq 2 ]]; then
+                        # First argument after install - package name
+                        if command -v apt-cache &> /dev/null; then
+                            COMPREPLY=($(compgen -W "$(apt-cache pkgnames 2>/dev/null | head -50)" -- "$cur"))
+                        fi
+                    fi
+                    ;;
+            esac
+            ;;
+        remove)
+            case "$prev" in
+                remove)
+                    # Installed package completion
+                    COMPREPLY=($(compgen -W "$(_get_all_packages)" -- "$cur"))
+                    ;;
+                *)
+                    if [[ "$cur" == -* ]]; then
+                        COMPREPLY=($(compgen -W "--force --purge --help" -- "$cur"))
+                    elif [[ $COMP_CWORD -eq 2 ]]; then
+                        # First argument after remove - installed package name
+                        COMPREPLY=($(compgen -W "$(_get_all_packages)" -- "$cur"))
+                    fi
+                    ;;
+            esac
+            ;;
+        mode)
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "-s --status --offline --online -a --auto --help" -- "$cur"))
+            fi
+            ;;
+        info)
+            case "$prev" in
+                info)
+                    # Package name completion
+                    COMPREPLY=($(compgen -W "$(_get_all_packages)" -- "$cur"))
+                    ;;
+                *)
+                    if [[ "$cur" == -* ]]; then
+                        COMPREPLY=($(compgen -W "--dependencies --help" -- "$cur"))
+                    elif [[ $COMP_CWORD -eq 2 ]]; then
+                        # First argument after info - package name
+                        COMPREPLY=($(compgen -W "$(_get_all_packages)" -- "$cur"))
+                    fi
+                    ;;
+            esac
+            ;;
+        list)
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "--all --metapackages --broken --table --simple --help" -- "$cur"))
+            fi
+            ;;
+        health)
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "--verbose --help" -- "$cur"))
+            fi
+            ;;
+        fix)
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "--force --help" -- "$cur"))
+            fi
+            ;;
+        cleanup)
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "--apt-cache --offline-repos --artifactory --all --aggressive --help" -- "$cur"))
+            fi
+            ;;
+        connect)
+            case "$prev" in
+                --key)
+                    # SSH key file completion
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    ;;
+                --port)
+                    # Common SSH ports
+                    COMPREPLY=($(compgen -W "22 2222 22000" -- "$cur"))
+                    ;;
+                connect)
+                    # For the first argument (user), we can't really autocomplete
+                    # but we can suggest common usernames
+                    if [[ $COMP_CWORD -eq 2 ]]; then
+                        COMPREPLY=($(compgen -W "root ubuntu admin user developer" -- "$cur"))
+                    fi
+                    ;;
+                *)
+                    if [[ "$cur" == -* ]]; then
+                        COMPREPLY=($(compgen -W "--key --port --disconnect --help" -- "$cur"))
+                    elif [[ $COMP_CWORD -eq 2 ]]; then
+                        # Username
+                        COMPREPLY=($(compgen -W "root ubuntu admin user developer" -- "$cur"))
+                    elif [[ $COMP_CWORD -eq 3 ]]; then
+                        # Hostname - could be enhanced with known hosts
+                        COMPREPLY=()
+                    fi
+                    ;;
+            esac
+            ;;
+    esac
+
+    return 0
+}
+
+# Register the completion function
+complete -F _dpm_completion dpm
+
+# Also register for the alternative name if it exists
+if command -v debian-package-manager &> /dev/null; then
+    complete -F _dpm_completion debian-package-manager
+fi

@@ -19,7 +19,7 @@ Intelligent package management for custom Debian package systems with offline/on
 
 ## Installation
 
-The Debian Package Manager supports two installation modes:
+The Debian Package Manager supports two installation modes through a unified installer:
 
 ### 🖥️ Local Installation (Production)
 
@@ -33,6 +33,12 @@ sudo ./install.sh --local
 sudo ./install.sh --local --uninstall
 ```
 
+**Features included:**
+- System-wide `dpm` command
+- Bash autocomplete for all commands and arguments
+- Default configuration
+- Full package management capabilities
+
 **Requirements:**
 - Ubuntu 18.04+ or Debian 10+
 - Python 3.8+
@@ -44,15 +50,22 @@ sudo ./install.sh --local --uninstall
 Set up an isolated Docker environment for development and testing:
 
 ```bash
-# Set up Docker environment
+# Set up Docker environment (auto-starts container)
 ./install.sh --docker
 
-# Start and enter the environment
+# Connect to running environment
 ./dpm-docker-start.sh
 
 # Stop the environment when done
 ./dpm-docker-stop.sh
 ```
+
+**Features included:**
+- Isolated development environment
+- Bash autocomplete pre-configured
+- Example packages for testing
+- SSH keys for remote testing
+- Live code editing support
 
 **Requirements:**
 - Docker and Docker Compose
@@ -64,6 +77,34 @@ Set up an isolated Docker environment for development and testing:
 - 🧪 **Development Ready**: Live code editing with immediate testing
 - 📦 **Pre-configured**: Example packages and SSH keys included
 - 🚀 **Quick Setup**: Ready to use in minutes
+- ⚡ **Auto-start**: Container starts automatically during setup
+
+### ⌨️ Autocomplete Support
+
+Both installation modes include comprehensive bash autocomplete:
+
+- **Commands**: Tab completion for all DPM commands (`install`, `remove`, `list`, etc.)
+- **Options**: Tab completion for command-line flags (`--version`, `--force`, `--all`, etc.)
+- **Package Names**: Tab completion for available and installed packages
+- **SSH Options**: Tab completion for connection parameters
+
+```bash
+# Try autocomplete after installation
+dpm <TAB><TAB>              # Shows all available commands
+dpm install <TAB><TAB>      # Shows available packages
+dpm remove <TAB><TAB>       # Shows installed packages
+dpm list --<TAB><TAB>       # Shows available options
+```
+
+### Installation Help
+
+```bash
+# Show installation options
+./install.sh --help
+
+# Quick help
+./install.sh              # Shows usage information
+```
 
 ### System Requirements
 
@@ -139,24 +180,29 @@ dpm <command> --help             # Show help for specific command
 # Install DPM locally
 sudo ./install.sh --local
 
-# Basic usage
+# Basic usage with autocomplete
 dpm install mycompany-dev-tools   # Install custom package
 dpm list                          # List custom packages  
 dpm health                        # Check system health
+
+# Use tab completion
+dpm <TAB><TAB>                    # Show all commands
+dpm install <TAB><TAB>            # Show available packages
 ```
 
 ### Docker Environment
 ```bash
-# Set up Docker environment
+# Set up Docker environment (auto-starts)
 ./install.sh --docker
 
-# Start and enter container
+# Connect to running container
 ./dpm-docker-start.sh
 
-# Inside container - test DPM
+# Inside container - test DPM with autocomplete
 dpm health                        # Check system
 dpm list --all                    # List all packages
 dpm mode --status                 # Check mode
+dpm <TAB><TAB>                    # Try tab completion
 ```
 
 ## Detailed Usage
@@ -241,6 +287,30 @@ DPM uses JSON configuration files for system settings:
 
 - **System Config**: `/etc/debian-package-manager/config.json`
 - **User Config**: `~/.config/debian-package-manager/config.json`
+
+### Autocomplete Configuration
+
+Bash autocomplete is automatically installed and configured:
+
+- **Local Installation**: Installed to `/etc/bash_completion.d/dpm`
+- **Docker Environment**: Pre-configured in container
+- **Manual Setup**: Source the completion script in your `~/.bashrc`
+
+```bash
+# Manual autocomplete setup (if needed)
+source /etc/bash_completion.d/dpm
+
+# Or add to ~/.bashrc for permanent setup
+echo "source /etc/bash_completion.d/dpm" >> ~/.bashrc
+```
+
+**Autocomplete Features:**
+- ✅ Command completion (`dpm <TAB><TAB>`)
+- ✅ Option completion (`dpm install --<TAB><TAB>`)
+- ✅ Package name completion for available packages
+- ✅ Installed package completion for remove operations
+- ✅ SSH key file completion for connect operations
+- ✅ Context-aware suggestions based on command
 
 ### Configuration Example
 

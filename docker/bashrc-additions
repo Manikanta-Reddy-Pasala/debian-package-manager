@@ -2,28 +2,32 @@
 export PATH="/root/.local/bin:/usr/local/bin:$PATH"
 export PYTHONPATH="/workspace/src:$PYTHONPATH"
 
+# Load bash completion for DPM
+if [ -f /etc/bash_completion.d/dpm ]; then
+    source /etc/bash_completion.d/dpm
+fi
+
 # Helpful aliases
 alias ll='ls -la'
 alias dpm-status='dpm health --verbose && dpm mode --status'
-alias dpm-test='dpm list --custom && dpm info docker-example'
-alias dpm-online='dpm install --online'
-alias dpm-offline='dpm install --offline'
+alias dpm-test='dpm list && dpm info docker-example'
 
 # Welcome message
 echo "🐳 Welcome to DPM Docker Environment!"
 echo "📦 Debian Package Manager is ready to use"
+echo "🎯 Tab completion is available! Try: dpm <TAB><TAB>"
 echo ""
 echo "🔧 Quick start commands:"
 echo "  dpm --help              # Show all available commands"
 echo "  dpm health              # Check system health"
-echo "  dpm list --custom       # List custom packages"
+echo "  dpm list                # List custom packages"
+echo "  dpm list --all          # List all packages"
 echo "  dpm info docker-example # Show example package info"
-echo "  dpm config --show       # Show current configuration"
 echo ""
 echo "📦 Example workflows:"
 echo "  dpm install <package>   # Install a package"
-echo "  dpm install --online <package>   # Force online mode"
-echo "  dpm install --offline <package>  # Force offline mode"
+echo "  dpm install <package> --version <ver> # Install specific version"
+echo "  dpm install <package> --force # Force installation"
 echo "  dpm remove <package>    # Remove a package"
 echo "  dpm cleanup --all       # Clean system"
 echo ""
@@ -41,6 +45,4 @@ echo ""
 echo "🧪 Test aliases:"
 echo "  dpm-status              # Show health and mode status"
 echo "  dpm-test                # Test custom packages"
-echo "  dpm-online <pkg>        # Install with online mode"
-echo "  dpm-offline <pkg>       # Install with offline mode"
 echo ""

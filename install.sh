@@ -136,6 +136,9 @@ EOF
     # Create alternative executable name
     ln -sf "$BIN_DIR/dpm" "$BIN_DIR/debian-package-manager"
     
+    # Install bash completion
+    install_autocomplete
+    
     print_success "Installation completed successfully!"
 }
 
@@ -165,6 +168,24 @@ EOF
     fi
 }
 
+install_autocomplete() {
+    print_status "Installing bash autocomplete..."
+    
+    # Create bash completion directory if it doesn't exist
+    mkdir -p /etc/bash_completion.d
+    
+    # Copy autocomplete script if it exists
+    if [[ -f "bash-completion/dpm" ]]; then
+        cp bash-completion/dpm /etc/bash_completion.d/dpm
+        chmod 644 /etc/bash_completion.d/dpm
+        print_success "Bash autocomplete installed to /etc/bash_completion.d/dpm"
+        print_status "Autocomplete will be available in new shell sessions"
+        print_status "Or run: source /etc/bash_completion.d/dpm"
+    else
+        print_warning "Bash completion script not found, skipping autocomplete installation"
+    fi
+}
+
 show_usage() {
     print_success "Local installation complete! Available commands:"
     echo ""
@@ -178,6 +199,9 @@ show_usage() {
     echo "  dpm mode --status         # Show mode status"
     echo "  dpm cleanup --all         # Clean up system"
     echo "  dpm connect <user> <host> # Connect to remote system"
+    echo ""
+    echo "💡 Tab completion is available! Try: dpm <TAB><TAB>"
+    echo "   For new shells, restart terminal or run: source /etc/bash_completion.d/dpm"
     echo ""
     echo "For more information, run: dpm --help"
     echo ""
@@ -316,11 +340,27 @@ else
     # Wait for container to be ready
     echo "⏳ Waiting for container to be ready..."
     sleep 3
+    
+    echo "✅ Container started successfully!"
+fi
+
+# Check if we should enter interactive mode or just start
+if [[ "${1:-}" == "--start-only" ]]; then
+    echo "🎉 DPM Docker environment is running!"
+    echo "   Connect using: ./dpm-docker-start.sh"
+    exit 0
 fi
 
 echo "🔗 Connecting to DPM environment..."
 echo "   Use 'exit' to leave the container (it will keep running)"
 echo "   Use './dpm-docker-stop.sh' to fully stop the environment"
+echo ""
+echo "🚀 Quick start commands:"
+echo "   dpm health          # Check system status"
+echo "   dpm mode --status   # Check current mode"
+echo "   dpm list            # List custom packages"
+echo "   dpm list --all      # List all packages"
+echo "   Tab completion is available! Try: dpm <TAB><TAB>"
 echo ""
 
 $COMPOSE_CMD exec dpm-environment /bin/bash
@@ -393,6 +433,18 @@ install_docker() {
     build_docker_environment
     create_wrapper_scripts
     show_docker_usage
+    
+    # Auto-start the Docker environment
+    print_status "Auto-starting DPM Docker environment..."
+    if ./dpm-docker-start.sh --start-only; then
+        print_success "DPM Docker environment started successfully!"
+        echo ""
+        echo "🎉 Ready to use! Connect to your environment with:"
+        echo "   ./dpm-docker-start.sh"
+        echo ""
+    else
+        print_warning "Failed to auto-start Docker environment. You can start it manually with: ./dpm-docker-start.sh"
+    fi
     
     print_success "Docker environment setup completed successfully!"
 }

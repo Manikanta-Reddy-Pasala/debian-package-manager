@@ -35,5 +35,16 @@ fi
 # Fix any broken packages
 apt-get install -f -y 2>/dev/null || true
 
+# Install bash completion
+echo "🎯 Setting up bash completion..."
+if [ -f "/workspace/bash-completion/dpm" ]; then
+    mkdir -p /etc/bash_completion.d
+    cp /workspace/bash-completion/dpm /etc/bash_completion.d/dpm
+    chmod 644 /etc/bash_completion.d/dpm
+    echo "✅ Bash completion installed"
+else
+    echo "⚠️  Bash completion script not found"
+fi
+
 echo "✅ DPM environment setup complete!"
-echo "🚀 Ready to use DPM commands"
+echo "🚀 Ready to use DPM commands with tab completion"
