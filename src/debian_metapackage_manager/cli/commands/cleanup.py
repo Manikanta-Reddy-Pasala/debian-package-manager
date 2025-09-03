@@ -69,26 +69,26 @@ class CleanupCommandHandler(CommandHandler):
         mode = 'offline' if self.engine.config.is_offline_mode() else 'online'
         result = self.cleanup.perform_system_maintenance(mode)
         
-        print(f"🧹 System Maintenance Complete - {target}")
+        print(f"System Maintenance Complete - {target}")
         print("=" * 40)
         
         if result.success:
-            print("✅ Cleanup completed successfully")
+            print("Cleanup completed successfully")
             if result.details:
                 space_freed = result.details.get('total_space_freed_mb', 0)
                 operations = result.details.get('operations_performed', 0)
-                print(f"💾 Space freed: {space_freed} MB")
-                print(f"🔧 Operations performed: {operations}")
+                print(f"Space freed: {space_freed} MB")
+                print(f"Operations performed: {operations}")
         else:
-            print("❌ Some cleanup operations failed")
+            print("Some cleanup operations failed")
         
         if result.warnings:
-            print(f"\n⚠️  Warnings ({len(result.warnings)}):")
+            print(f"\nWarnings ({len(result.warnings)}):")
             for warning in result.warnings:
                 print(f"  - {warning}")
         
         if result.errors:
-            print(f"\n❌ Errors ({len(result.errors)}):")
+            print(f"\nErrors ({len(result.errors)}):")
             for error in result.errors:
                 print(f"  - {error}")
         
@@ -97,12 +97,12 @@ class CleanupCommandHandler(CommandHandler):
     def _handle_apt_cache_cleanup(self, target: str, aggressive: bool) -> int:
         """Handle APT cache cleanup."""
         result = self.cleanup.clean_apt_cache(aggressive=aggressive)
-        print(f"🧹 APT Cache Cleanup - {target}")
+        print(f"APT Cache Cleanup - {target}")
         if result.success:
             space_freed = result.details.get('space_freed_mb', 0) if result.details else 0
-            print(f"✅ APT cache cleaned - {space_freed} MB freed")
+            print(f"APT cache cleaned - {space_freed} MB freed")
         else:
-            print("❌ Failed to clean APT cache")
+            print("Failed to clean APT cache")
             for error in result.errors:
                 print(f"  - {error}")
         return 0 if result.success else 1
@@ -111,13 +111,13 @@ class CleanupCommandHandler(CommandHandler):
         """Handle offline repositories cleanup."""
         offline_repos = self.cleanup._discover_offline_repositories()
         result = self.cleanup.clean_offline_repositories(offline_repos)
-        print(f"🧹 Offline Repository Cleanup - {target}")
+        print(f"Offline Repository Cleanup - {target}")
         if result.success:
             cleaned = result.details.get('cleaned_paths', []) if result.details else []
             space_freed = result.details.get('space_freed_mb', 0) if result.details else 0
-            print(f"✅ Cleaned {len(cleaned)} repositories - {space_freed} MB freed")
+            print(f"Cleaned {len(cleaned)} repositories - {space_freed} MB freed")
         else:
-            print("❌ Failed to clean offline repositories")
+            print("Failed to clean offline repositories")
             for error in result.errors:
                 print(f"  - {error}")
         return 0 if result.success else 1
@@ -126,23 +126,23 @@ class CleanupCommandHandler(CommandHandler):
         """Handle artifactory cleanup."""
         artifactory_config = self.cleanup._get_artifactory_config()
         if not artifactory_config:
-            print(f"⚠️  No artifactory configuration found on {target}")
+            print(f"No artifactory configuration found on {target}")
             return 1
         
         result = self.cleanup.clean_artifactory_cache(artifactory_config)
-        print(f"🧹 Artifactory Cache Cleanup - {target}")
+        print(f"Artifactory Cache Cleanup - {target}")
         if result.success:
             space_freed = result.details.get('space_freed_mb', 0) if result.details else 0
-            print(f"✅ Artifactory cache cleaned - {space_freed} MB freed")
+            print(f"Artifactory cache cleaned - {space_freed} MB freed")
         else:
-            print("❌ Failed to clean artifactory cache")
+            print("Failed to clean artifactory cache")
             for error in result.errors:
                 print(f"  - {error}")
         return 0 if result.success else 1
     
     def _show_cleanup_options(self, target: str) -> None:
         """Show available cleanup options."""
-        print(f"🧹 Available cleanup options for {target}:")
+        print(f"Available cleanup options for {target}:")
         print("  --apt-cache      Clean APT package cache")
         print("  --offline-repos  Clean offline repository caches")
         print("  --artifactory    Clean artifactory cache")
@@ -152,12 +152,12 @@ class CleanupCommandHandler(CommandHandler):
     def _display_operation_result(self, result) -> None:
         """Display operation result."""
         if result.success:
-            print("✅ Cleanup completed successfully")
+            print("Cleanup completed successfully")
             if result.details and 'stdout' in result.details:
                 stdout = result.details['stdout'].strip()
                 if stdout:
-                    print(f"\n📄 Remote output:\n{stdout}")
+                    print(f"\nRemote output:\n{stdout}")
         else:
-            print("❌ Cleanup failed")
+            print("Cleanup failed")
             for error in result.errors:
                 print(f"  - {error}")

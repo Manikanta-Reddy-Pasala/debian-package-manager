@@ -44,21 +44,21 @@ class FixCommandHandler(CommandHandler):
     def _display_operation_result(self, result) -> None:
         """Display operation result."""
         if result.success:
-            print("✅ System fixed successfully")
+            print("System fixed successfully")
             if result.packages_affected:
-                print(f"📦 Packages affected: {len(result.packages_affected)}")
+                print(f"Packages affected: {len(result.packages_affected)}")
                 for pkg in result.packages_affected[:5]:
                     print(f"  - {pkg.name}")
         else:
-            print("❌ Failed to fix system")
+            print("Failed to fix system")
         
         if result.warnings:
-            print(f"⚠️  Warnings: {len(result.warnings)}")
+            print(f"Warnings: {len(result.warnings)}")
             for warning in result.warnings:
                 print(f"  - {warning}")
         
         if result.errors:
-            print(f"❌ Errors: {len(result.errors)}")
+            print(f"Errors: {len(result.errors)}")
             for error in result.errors:
                 print(f"  - {error}")
         
@@ -66,4 +66,4 @@ class FixCommandHandler(CommandHandler):
         if result.details and 'stdout' in result.details:
             stdout = result.details['stdout'].strip()
             if stdout:
-                print(f"\n📄 Remote output:\n{stdout}")
+                print(f"\nRemote output:\n{stdout}")

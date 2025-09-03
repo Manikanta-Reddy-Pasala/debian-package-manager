@@ -32,7 +32,8 @@ class InfoCommandHandler(CommandHandler):
         # Check if we're connected to remote
         if self.remote_manager.is_remote_connected():
             # Execute on remote system
-            result = self.remote_manager.execute_command('info', args.package_name)
+            kwargs = {'dependencies': args.dependencies}
+            result = self.remote_manager.execute_command('info', args.package_name, **kwargs)
             self._display_operation_result(result)
             return 0 if result.success else 1
         else:
@@ -40,25 +41,32 @@ class InfoCommandHandler(CommandHandler):
             package_info = self.engine.get_package_info(args.package_name)
             
             if not package_info:
-                print(f"Package '{args.package_name}' not found on {target}.")
+                print(f"Package '{args.package_name}' not found")
                 return 1
             
-            dependencies = []
-            if args.dependencies:
-                dependencies = self.engine.apt.get_dependencies(args.package_name)
+            # Display package information
+            print(f"Package: {package_info.name}")
+            print(f"Version: {package_info.version}")
+            print(f"Status: {package_info.status.value}")
             
-            self.engine.conflict_handler.display_package_info(package_info, dependencies)
+            if args.dependencies:
+                dependencies = self.engine.get_package_dependencies(args.package_name)
+                if dependencies:
+                    print(f"\nDependencies:")
+                    for dep in dependencies:
+                        print(f"  - {dep}")
+            
             return 0
     
     def _display_operation_result(self, result) -> None:
         """Display operation result."""
         if result.success:
-            print("✅ Operation completed successfully")
+            print("Operation completed successfully")
             if result.details and 'stdout' in result.details:
                 stdout = result.details['stdout'].strip()
                 if stdout:
-                    print(f"\n📄 Remote output:\n{stdout}")
+                    print(f"\nRemote output:\n{stdout}")
         else:
-            print("❌ Operation failed")
+            print("Operation failed")
             for error in result.errors:
                 print(f"  - {error}")

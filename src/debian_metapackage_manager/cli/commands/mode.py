@@ -43,11 +43,11 @@ class ModeCommandHandler(CommandHandler):
         """Handle local mode management."""
         if args.offline:
             self.engine.mode_manager.switch_to_offline_mode()
-            print(f"✅ Switched to offline mode on {target}")
+            print(f"Switched to offline mode on {target}")
             self._show_mode_status(target)
         elif args.online:
             self.engine.mode_manager.switch_to_online_mode()
-            print(f"✅ Switched to online mode on {target}")
+            print(f"Switched to online mode on {target}")
             self._show_mode_status(target)
         else:
             # Show status by default

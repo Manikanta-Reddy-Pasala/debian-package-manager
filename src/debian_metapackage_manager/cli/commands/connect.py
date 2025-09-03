@@ -40,7 +40,7 @@ class ConnectCommandHandler(CommandHandler):
         # Parse username@host format or separate arguments
         user, host = self._parse_user_host(args.user_host, args.host)
         if not user or not host:
-            print("❌ Invalid connection format. Use either:")
+            print("Invalid connection format. Use either:")
             print("   dpm connect username@hostname")
             print("   dpm connect username hostname")
             return 1
@@ -69,38 +69,38 @@ class ConnectCommandHandler(CommandHandler):
         if self.remote_manager.is_remote_connected():
             target = self.remote_manager.get_current_target()
             self.remote_manager.disconnect()
-            print(f"✅ Disconnected from {target}")
-            print("🏠 Now executing commands locally")
+            print(f"Disconnected from {target}")
+            print("Now executing commands locally")
         else:
-            print("ℹ️  Not connected to any remote system")
+            print("Not connected to any remote system")
         return 0
     
     def _show_connection_status(self) -> int:
         """Show current connection status."""
         if self.remote_manager.is_remote_connected():
             target = self.remote_manager.get_current_target()
-            print(f"🌐 Connected to: {target}")
+            print(f"Connected to: {target}")
             print("   All DPM commands will execute on the remote system")
             print("   Use 'dpm connect --disconnect' to return to local execution")
         else:
-            print("🏠 Executing locally")
+            print("Executing locally")
             print("   Use 'dpm connect <user>@<host>' to connect to remote system")
             print("   Or: 'dpm connect <user> <host>'")
         return 0
     
     def _handle_connect(self, user: str, host: str, key: str, port: int) -> int:
         """Handle connection to remote system."""
-        print(f"🔌 Connecting to {user}@{host}:{port}...")
+        print(f"Connecting to {user}@{host}:{port}...")
         
         success = self.remote_manager.connect(host, user, key, port)
         
         if success:
-            print(f"✅ Successfully connected to {user}@{host}:{port}")
-            print("🌐 All DPM commands will now execute on the remote system")
+            print(f"Successfully connected to {user}@{host}:{port}")
+            print("All DPM commands will now execute on the remote system")
             print("   Use 'dpm connect --disconnect' to return to local execution")
             return 0
         else:
-            print(f"❌ Failed to connect to {user}@{host}:{port}")
+            print(f"Failed to connect to {user}@{host}:{port}")
             print("   Please check:")
             print("   - Network connectivity")
             print("   - SSH credentials")

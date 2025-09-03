@@ -31,7 +31,8 @@ class HealthCommandHandler(CommandHandler):
         # Check if we're connected to remote
         if self.remote_manager.is_remote_connected():
             # Execute on remote system
-            result = self.remote_manager.execute_command('health')
+            kwargs = {'verbose': args.verbose}
+            result = self.remote_manager.execute_command('health', '', **kwargs)
             self._display_operation_result(result)
             return 0 if result.success else 1
         else:
@@ -42,17 +43,17 @@ class HealthCommandHandler(CommandHandler):
             print("=" * 40)
             
             if result.success:
-                print("✅ System is healthy")
+                print("System is healthy")
             else:
-                print("❌ System has issues")
+                print("System has issues")
             
             if result.warnings:
-                print(f"\n⚠️  Warnings ({len(result.warnings)}):")
+                print(f"\nWarnings ({len(result.warnings)}):")
                 for warning in result.warnings:
                     print(f"  - {warning}")
             
             if result.errors:
-                print(f"\n❌ Errors ({len(result.errors)}):")
+                print(f"\nErrors ({len(result.errors)}):")
                 for error in result.errors:
                     print(f"  - {error}")
             
@@ -70,12 +71,12 @@ class HealthCommandHandler(CommandHandler):
     def _display_operation_result(self, result) -> None:
         """Display operation result."""
         if result.success:
-            print("✅ System is healthy")
+            print("System is healthy")
             if result.details and 'stdout' in result.details:
                 stdout = result.details['stdout'].strip()
                 if stdout:
-                    print(f"\n📄 Remote output:\n{stdout}")
+                    print(f"\nRemote output:\n{stdout}")
         else:
-            print("❌ System has issues")
+            print("System has issues")
             for error in result.errors:
                 print(f"  - {error}")

@@ -78,23 +78,23 @@ Examples:
     def display_operation_result(self, result: OperationResult) -> None:
         """Display operation result in a consistent format."""
         if result.success:
-            print("✅ Operation completed successfully")
+            print("Operation completed successfully")
             if result.packages_affected:
-                print(f"📦 Packages affected: {len(result.packages_affected)}")
+                print(f"Packages affected: {len(result.packages_affected)}")
                 for pkg in result.packages_affected[:5]:
                     print(f"  - {pkg.name}")
                 if len(result.packages_affected) > 5:
                     print(f"  ... and {len(result.packages_affected) - 5} more")
         else:
-            print("❌ Operation failed")
+            print("Operation failed")
         
         if result.warnings:
-            print(f"⚠️  Warnings: {len(result.warnings)}")
+            print(f"Warnings: {len(result.warnings)}")
             for warning in result.warnings:
                 print(f"  - {warning}")
         
         if result.errors:
-            print(f"❌ Errors: {len(result.errors)}")
+            print(f"Errors: {len(result.errors)}")
             for error in result.errors:
                 print(f"  - {error}")
         
@@ -102,7 +102,7 @@ Examples:
         if hasattr(result, 'details') and result.details and 'stdout' in result.details:
             stdout = result.details['stdout'].strip()
             if stdout:
-                print(f"\n📄 Remote output:\n{stdout}")
+                print(f"\nRemote output:\n{stdout}")
 
 
 class CLIError(Exception):
